@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use crate::signal::Signal;
 
 mod consts;
@@ -6,18 +8,44 @@ mod signal;
 
 
 fn main() {
-    let s1 = Signal::from(
-        [1, 0, 0, 0].as_slice()
+    let signal = Signal::from(
+        [1, 0, -1, 0].as_slice()
     );
-    let s3 = s1.clone();
-    let s4 = s1.forward_dft();
+    let ir = Signal::from(
+        [1., 0.5, 0., 0.].as_slice()
+    );
+    
+    println!("signal: {}, ir: {}", signal, ir);
 
-    println!("signal: {}\ndft: {}", s3, s4);
+    let ir_dft = ir.forward_dft();
+    let signal_final = signal.forward_dft().mul(&ir_dft).inverse_dft();
+
+    println!("signal final {}", signal_final);
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Mul;
     use crate::signal::Signal;
+
+    #[test]
+    fn convolve_with_impulse_is_unchanged() {
+        let signal = Signal::from(
+            [1, 0, -1, 0].as_slice()
+        );
+        let ir = Signal::from(
+            [1, 0, 0, 0].as_slice()
+        );
+        
+        println!("signal: {}, ir: {}", signal, ir);
+
+        let ir_dft = ir.forward_dft();
+        let signal_final = signal.forward_dft().mul(&ir_dft).inverse_dft();
+
+        println!("signal final {}", signal_final);
+
+        assert_eq!(signal, signal_final)
+    }
 
     #[test]
     fn inverse_inverse() {
@@ -33,8 +61,6 @@ mod tests {
 
         let mut cos_dft = cos.forward_dft();
         let dc_dft = dc.forward_dft();
-
-        
 
         let cos_plus_dc = Signal::from([2, 1, 0, 1].as_slice());
 
