@@ -20,6 +20,13 @@ mod tests {
     use crate::signal::Signal;
 
     #[test]
+    fn inverse_inverse() {
+        let s = Signal::from([0, 1, 0, -1].as_slice());
+        println!("s:\t\t{}\ns_dft:\t\t{}\ns_dft_idft:\t{}", s, s.forward_dft(), s.forward_dft().inverse_dft());
+        assert_eq!(s, s.forward_dft().inverse_dft());
+    }
+
+    #[test]
     fn linearity() {
         let cos = Signal::from([1, 0, -1, 0].as_slice());
         let dc = Signal::from([1, 1, 1, 1].as_slice());

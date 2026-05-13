@@ -41,7 +41,19 @@ impl Signal {
     pub fn inverse_dft(&self) -> Signal {
         let mut data_tmp : Vec<Complex64> = Vec::new();
 
-        todo!()
+        for n in 0..self.len() {
+            let tmp = self.data.iter().enumerate().map(|(k, val)| {
+                *val * Complex64::from(EULER).powc(
+                    j() * (Complex64::from(2. * PI) / Complex64::from(self.len() as f64)) * Complex64::from(k as f64) * Complex64::from(n as f64)
+                )
+            }).reduce(|sum, x| {
+                sum + x
+            }).unwrap() / Complex64::from(self.len() as f64);
+
+            data_tmp.push(tmp);
+        }
+
+        Signal { data: data_tmp }
     }
 }
 
@@ -126,6 +138,8 @@ impl PartialEq for Signal {
             let b_real_approx = round_to_place(b.real(), 3);
             let b_imag_approx = round_to_place(b.imag(), 3);
 
+            // println!("{a_real_approx} == {b_real_approx}\t&&\t{a_imag_approx} == {b_imag_approx}");
+
             (a_real_approx == b_real_approx) && (a_imag_approx == b_imag_approx)
         })
     }
@@ -146,8 +160,16 @@ impl Display for Signal {
             }
             let mut mag = f64::sqrt(val.real().powf(2.) + val.imag().powf(2.));
             let mut phase = f64::atan2(val.imag(), val.real());
-            mag = round_to_place(mag, 3);
-            phase = round_to_place(phase, 3);
+
+            // if the magnitude is basically zero, force the phase to zero
+            if mag < 0.00001 {
+                mag = 0.0;
+                phase = 0.0;
+            } else {
+                mag = round_to_place(mag, 3);
+                phase = round_to_place(phase, 3);
+            }
+
             out += &*("".to_string() + &*mag.to_string() + " * e^" + &*phase.to_string() + "j");
         }
         out += "]";
