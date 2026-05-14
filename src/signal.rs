@@ -1,4 +1,4 @@
-use std::{f64::consts::PI, fmt::Display, ops::{Add, Mul}};
+use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul}};
 
 use easy_complex::Complex64;
 use crate::consts::EULER;
@@ -54,6 +54,44 @@ impl Signal {
         }
 
         Signal { data: data_tmp }
+    }
+
+    pub fn zero_extend_start_and_end(self, num : usize) -> Self {
+        let mut data_tmp : VecDeque<Complex64> = self.data.into();
+        for _ in 0..num {
+            data_tmp.push_front(Complex64::from(0));
+            data_tmp.push_back(Complex64::from(0));
+        }
+        Signal { data: data_tmp.into() }
+    }
+
+    pub fn zero_extend_end(mut self, num : usize) -> Self {
+        for _ in 0..num {
+            self.data.push(Complex64::from(0));
+        }
+        self
+    }
+
+    pub fn zero_extend_end_mut(&mut self, num : usize) -> &Self {
+        for _ in 0..num {
+            self.data.push(Complex64::from(0));
+        }
+        self
+    }
+
+    pub fn zero_extend_start(self, num : usize) -> Self {
+        let mut data_tmp : VecDeque<Complex64> = self.data.into();
+        for _ in 0..num {
+            data_tmp.push_front(Complex64::from(0));
+        }
+        Signal { data: data_tmp.into() }
+    }
+
+    pub fn zero_extend_start_mut(&mut self, num : usize) -> &Self {
+        for _ in 0..num {
+            self.data.insert(0, Complex64::from(0));
+        }
+        self
     }
 }
 

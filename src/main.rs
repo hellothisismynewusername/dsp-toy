@@ -10,10 +10,10 @@ mod signal;
 fn main() {
     let signal = Signal::from(
         [1, 0, -1, 0].as_slice()
-    );
+    ).zero_extend_end(10);
     let ir = Signal::from(
-        [1., 0.5, 0., 0.].as_slice()
-    );
+        [1., 0.2, 0.15, 0.].as_slice()
+    ).zero_extend_end(10);
     
     println!("signal: {}, ir: {}", signal, ir);
 
@@ -48,7 +48,7 @@ mod tests {
     }
 
     #[test]
-    fn inverse_inverse() {
+    fn inverse() {
         let s = Signal::from([0, 1, 0, -1].as_slice());
         println!("s:\t\t{}\ns_dft:\t\t{}\ns_dft_idft:\t{}", s, s.forward_dft(), s.forward_dft().inverse_dft());
         assert_eq!(s, s.forward_dft().inverse_dft());
@@ -56,19 +56,19 @@ mod tests {
 
     #[test]
     fn linearity() {
-        let cos = Signal::from([1, 0, -1, 0].as_slice());
+        let signal = Signal::from([1, 0, -1, 0].as_slice());
         let dc = Signal::from([1, 1, 1, 1].as_slice());
 
-        let mut cos_dft = cos.forward_dft();
+        let mut signal_dft = signal.forward_dft();
         let dc_dft = dc.forward_dft();
 
-        let cos_plus_dc = Signal::from([2, 1, 0, 1].as_slice());
+        let signal_plus_dc = Signal::from([2, 1, 0, 1].as_slice());
 
-        let combine_dft = cos_plus_dc.forward_dft();
+        let combine_dft = signal_plus_dc.forward_dft();
 
         println!("combine_dft {}", combine_dft);
-        println!("cos_dft + &dc_dft {}", &mut cos_dft + &dc_dft);
+        println!("cos_dft + &dc_dft {}", &mut signal_dft + &dc_dft);
 
-        assert!(combine_dft == cos_dft);
+        assert!(combine_dft == signal_dft);
     }
 }
