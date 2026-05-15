@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul}};
 
-use easy_complex::Complex64;
+use easy_complex::{Complex, Complex64};
 use crate::consts::EULER;
 
 #[derive(Debug, Clone)]
@@ -46,9 +46,9 @@ impl Signal {
         }
     }
 
-    fn r2fft(data : &[Complex64]) -> Box<[Complex64]> {
+    fn r2fft(data : &[Complex64]) -> Vec<Complex64> {
         if data.len() <= 1 {
-            Box::from(data)
+            Vec::from(data)
         } else {
             let n = data.len();
 
@@ -78,7 +78,7 @@ impl Signal {
                 twiddle = twiddle * twiddle_n;
             }
 
-            Box::from(out)
+            out
         }
     }
 
@@ -98,6 +98,49 @@ impl Signal {
         }
 
         Signal { data: data_tmp }
+    }
+
+    pub fn inverse_radix_2_fft(&self) -> Result<Signal, ()> {
+        match self.len().is_power_of_two() {
+            true => Ok(Signal { data: Self::ir2fft(&self.data).to_vec() }),
+            false => Err(())
+        }
+    }
+
+    fn ir2fft(data : &[Complex64]) -> Vec<Complex64> {
+        if data.len() <= 1 {
+            Vec::from(data)
+        } else {
+            let n = data.len();
+
+            let evens_fft : Box<[Complex64]> = data.iter()
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 0)
+                .map(|(_, x)| *x)
+                .collect();
+            let odds_fft : Box<[Complex64]>  = data.iter()
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 1)
+                .map(|(_, x)| *x)
+                .collect();
+
+            let evens = Self::ir2fft(evens_fft.iter().as_slice());
+            let odds = Self::ir2fft(odds_fft.iter().as_slice());
+
+            let angle = (-2. * PI) / n as f64;
+            let twiddle_n_bar = Complex64::new(angle.cos(), -1. * angle.sin());
+
+            let mut twiddle_bar = Complex64::from(1);
+            let mut out = vec![Complex64::from(0); n];
+
+            for j in 0..(n / 2) {
+                out[j] = (evens[j] + twiddle_bar * odds[j]) / Complex64::from(2);
+                out[j + n / 2] = (evens[j] - twiddle_bar * odds[j]) / Complex64::from(2);
+                twiddle_bar = twiddle_bar * twiddle_n_bar;
+            }
+
+            out
+        }
     }
 
     pub fn zero_extend_start_and_end(self, num : usize) -> Self {
