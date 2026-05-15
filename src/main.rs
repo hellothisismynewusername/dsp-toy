@@ -26,6 +26,17 @@ mod tests {
     use crate::signal::{Signal};
 
     #[test]
+    fn amplitude_change() {
+        let signal = Signal::from(
+            [0.1, 0.2, -6., -7.].as_slice()
+        );
+        println!("signal:\t\t\t{}", signal);
+        println!("signal amplified:\t{}", signal.clone() * -2.5);
+
+        assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5].as_slice()));
+    }
+
+    #[test]
     fn dft_fft_and_inverses_work() {
         let signal = Signal::from(
             [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0].as_slice()

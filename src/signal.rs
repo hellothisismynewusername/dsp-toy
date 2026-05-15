@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul}};
+use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul, Sub}, process::Output};
 
 use easy_complex::{Complex, Complex64};
 use crate::consts::EULER;
@@ -262,6 +262,34 @@ impl Mul<&Signal> for Signal {
             self.data[i] = self.data[i] * rhs.data[i];
         }
 
+        self
+    }
+}
+
+impl<'a, T> Mul<T> for &'a mut Signal
+where 
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    Complex64: From<T>
+{
+    type Output = &'a mut Signal;
+
+    /// Scalar multiplies entries in `self` by `rhs`, mutating and returning a mutable reference.
+    fn mul(self, rhs: T) -> Self::Output {
+        self.data = self.data.iter().map(|x| *x * Complex64::from(rhs)).collect();
+        self
+    }
+}
+
+impl<T> Mul<T> for Signal
+where 
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    Complex64: From<T>
+{
+    type Output = Signal;
+
+    /// Scalar multiplies entries in `self` by `rhs`, consuming and returning the final `Signal`.
+    fn mul(mut self, rhs: T) -> Self::Output {
+        self.data = self.data.iter().map(|x| *x * Complex64::from(rhs)).collect();
         self
     }
 }
