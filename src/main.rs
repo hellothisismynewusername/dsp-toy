@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use crate::signal::Signal;
 
 mod consts;
@@ -9,24 +7,36 @@ mod signal;
 
 fn main() {
     let signal = Signal::from(
-        [1, 0, -1, 0].as_slice()
-    ).zero_extend_end(10);
-    let ir = Signal::from(
-        [1., 0.2, 0.15, 0.].as_slice()
-    ).zero_extend_end(10);
-    
-    println!("signal: {}, ir: {}", signal, ir);
+        [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0].as_slice()
+    );
+    println!("signal:\t\t{}", signal);
+    println!("signal dft:\t\t{}", signal.forward_dft());
+    println!("signal fft:\t\t{}", signal.radix_2_fft().unwrap());
 
-    let ir_dft = ir.forward_dft();
-    let signal_final = signal.forward_dft().mul(&ir_dft).inverse_dft();
-
-    println!("signal final {}", signal_final);
+    println!("{}", signal.forward_dft() == signal.radix_2_fft().unwrap());
 }
 
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use crate::signal::Signal;
+    use crate::signal::{Signal};
+
+    #[test]
+    fn differentiation_filter() {
+        let signal = Signal::from(
+            [0, 5, 10, 3, 3, 3, 3, -3, -3, 0, 0].as_slice()
+        );
+        let filter = Signal::from(
+            [1., -1.].as_slice()
+        ).zero_extend_end(9);
+
+        let differentiated_signal = signal.forward_dft().mul(&filter.forward_dft()).inverse_dft();
+        println!("signal: {}\tir: {}", signal, filter);
+        println!("differentiated: {:#}", differentiated_signal);
+
+        // 1-sample offset
+        assert_eq!(differentiated_signal, Signal::from([0, 5, 5, -7, 0, 0, 0, -6, 0, 3, 0].as_slice()));
+    }
 
     #[test]
     fn convolve_with_impulse_is_unchanged() {

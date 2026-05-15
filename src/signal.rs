@@ -19,7 +19,7 @@ impl Signal {
         self.data.len()
     }
 
-    /// Computes DFT, producing a new `Signal`; does not modify/consume `self`.
+    /// Performs DFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn forward_dft(&self) -> Signal {
         let mut data_tmp = Vec::new();
 
@@ -36,6 +36,50 @@ impl Signal {
             data_tmp.push(tmp.unwrap());
         }
         Signal { data: data_tmp }
+    }
+
+    /// Performs radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
+    pub fn radix_2_fft(&self) -> Result<Signal, ()> {
+        match self.len().is_power_of_two() {
+            true => Ok(Signal { data: Self::r2fft(&self.data).to_vec() }),
+            false => Err(())
+        }
+    }
+
+    fn r2fft(data : &[Complex64]) -> Box<[Complex64]> {
+        if data.len() <= 1 {
+            Box::from(data)
+        } else {
+            let n = data.len();
+
+            let evens : Box<[Complex64]> = data.iter()
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 0)
+                .map(|(_, x)| *x)
+                .collect();
+            let odds : Box<[Complex64]>  = data.iter()
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 1)
+                .map(|(_, x)| *x)
+                .collect();
+
+            let evens_fft = Self::r2fft(evens.iter().as_slice());
+            let odds_fft = Self::r2fft(odds.iter().as_slice());
+
+            let angle = (-2. * PI) / n as f64;
+            let twiddle_n = Complex64::new(angle.cos(), angle.sin());
+
+            let mut twiddle = Complex64::from(1);
+            let mut out = vec![Complex64::from(0); n];
+
+            for j in 0..(n / 2) {
+                out[j] = evens_fft[j] + twiddle * odds_fft[j];
+                out[j + n / 2] = evens_fft[j] - twiddle * odds_fft[j];
+                twiddle = twiddle * twiddle_n;
+            }
+
+            Box::from(out)
+        }
     }
 
     pub fn inverse_dft(&self) -> Signal {
@@ -120,7 +164,10 @@ impl<'a> Add<&Signal> for &'a mut Signal {
 
     /// Add `rhs` to `self`, returning the element-wise sum. Importantly, `self` is mutated but not consumed; it holds the sum.
     fn add(self, rhs: &Signal) -> Self::Output {
-        for i in 0..self.data.len() {
+        if rhs.len() != self.len() {
+            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] + rhs.data[i];
         }
 
@@ -133,7 +180,10 @@ impl Add<&Signal> for Signal {
 
     /// Add `rhs` to `self`, consuming `self` and returning the element-wise sum.
     fn add(mut self, rhs: &Signal) -> Self::Output {
-        for i in 0..self.data.len() {
+        if rhs.len() != self.len() {
+            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] + rhs.data[i];
         }
 
@@ -146,7 +196,10 @@ impl<'a> Mul<&Signal> for &'a mut Signal {
 
     /// Multiply `self` by `rhs`, returning the element-wise product. Importantly, `self` is mutated but not consumed; it holds the product.
     fn mul(self, rhs: &Signal) -> Self::Output {
-        for i in 0..self.data.len() {
+        if rhs.len() != self.len() {
+            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
         }
 
@@ -159,7 +212,10 @@ impl Mul<&Signal> for Signal {
 
     /// Multiply `self` by `rhs`, consuming `self` and returning the element-wise product.
     fn mul(mut self, rhs: &Signal) -> Self::Output {
-        for i in 0..self.data.len() {
+        if rhs.len() != self.len() {
+            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
         }
 
@@ -192,23 +248,43 @@ impl Display for Signal {
     /// Display the entries of the signal data, to an accuracy of 3 decimal places.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = "[".to_string();
+        let round_place = f.precision();
         for (i, val ) in self.data.iter().enumerate() {
             if i != 0 {
                 out += ", ";
             }
-            let mut mag = f64::sqrt(val.real().powf(2.) + val.imag().powf(2.));
-            let mut phase = f64::atan2(val.imag(), val.real());
 
-            // if the magnitude is basically zero, force the phase to zero
-            if mag < 0.00001 {
-                mag = 0.0;
-                phase = 0.0;
+            if !f.alternate() {
+                let mut mag = f64::sqrt(val.real().powf(2.) + val.imag().powf(2.));
+                let mut phase = f64::atan2(val.imag(), val.real());
+
+                // if the magnitude is basically zero, force the phase to zero
+                if mag < 0.00001 {
+                    mag = 0.0;
+                    phase = 0.0;
+                } else {
+                    mag = match round_place {
+                        Some(x) => round_to_place(mag, x as i32),
+                        None => round_to_place(mag, 3),
+                    };
+                    phase = match round_place {
+                        Some(x) => round_to_place(phase, x as i32),
+                        None => round_to_place(phase, 3)
+                    };
+                }
+
+                out += &*("".to_string() + &*mag.to_string() + " * e^" + &*phase.to_string() + "j");
             } else {
-                mag = round_to_place(mag, 3);
-                phase = round_to_place(phase, 3);
+                let real = match round_place {
+                    Some(x) => round_to_place(val.real(), x as i32),
+                    None => round_to_place(val.real(), 3)
+                };
+                let imag = match round_place {
+                    Some(x) => round_to_place(val.imag(), x as i32),
+                    None => round_to_place(val.imag(), 3)
+                };
+                out += &*(real.to_string() + " + " + &*imag.to_string() + "j")
             }
-
-            out += &*("".to_string() + &*mag.to_string() + " * e^" + &*phase.to_string() + "j");
         }
         out += "]";
         
