@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul, Sub}, process::Output};
 
 use easy_complex::{Complex, Complex64};
-use crate::consts::EULER;
+use crate::consts::{EQUALITY_ACCURACY, EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA};
 
 #[derive(Debug, Clone)]
 pub struct Signal {
@@ -38,7 +38,7 @@ impl Signal {
         Signal { data: data_tmp }
     }
 
-    /// Performs radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
+    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn radix_2_fft(&self) -> Result<Signal, ()> {
         match self.len().is_power_of_two() {
             true => Ok(Signal { data: Self::r2fft(&self.data).to_vec() }),
@@ -82,6 +82,7 @@ impl Signal {
         }
     }
 
+    /// Performs Inverse DFT, producing a time domain `Signal`; does not modify/consume `self`.
     pub fn inverse_dft(&self) -> Signal {
         let mut data_tmp : Vec<Complex64> = Vec::new();
 
@@ -100,6 +101,7 @@ impl Signal {
         Signal { data: data_tmp }
     }
 
+    /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn inverse_radix_2_fft(&self) -> Result<Signal, ()> {
         match self.len().is_power_of_two() {
             true => Ok(Signal { data: Self::ir2fft(&self.data).to_vec() }),
@@ -177,6 +179,58 @@ impl Signal {
     pub fn zero_extend_start_mut(&mut self, num : usize) -> &Self {
         for _ in 0..num {
             self.data.insert(0, Complex64::from(0));
+        }
+        self
+    }
+
+    /// Crops the signal by `start` and `end`, modifying `self` and returning the cropped Signal.
+    pub fn crop(mut self, start : usize, end : usize) -> Self {
+        self.data.truncate(end);
+        self.data.drain(..start);
+        self
+    }
+
+    /// Produces a new `Signal` with a copy of the original data from `start` to `end`.
+    pub fn crop_new(&self, start : usize, end : usize) -> Self {
+        Signal { data: self.data[start..end].to_vec() }
+    }
+
+    /// Applies the Hann window to the `Signal`, returning the consumed `Signal`.
+    pub fn hann_window(mut self) -> Self {
+        let len = self.len();
+        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+        for (i, val) in self.data.iter_mut().enumerate() {
+            *val = *val * Complex64::from(hann(i));
+        }
+        self
+    }
+
+    /// Applies the Hann window to the `Signal`, mutating `self` and returning a reference.
+    pub fn hann_window_mut(&mut self) -> &Self {
+        let len = self.len();
+        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+        for (i, val) in self.data.iter_mut().enumerate() {
+            *val = *val * Complex64::from(hann(i));
+        }
+        self
+    }
+
+    /// Applies the Hamming window to the `Signal`, returning the consumed `Signal`.
+    pub fn hamming_window(mut self) -> Self {
+        let len = self.len();
+        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+        for (i, val) in self.data.iter_mut().enumerate() {
+            *val = *val * Complex64::from(hamming(i));
+        }
+        self
+    }
+
+    /// Applies the Hamming window to the `Signal`, mutating `self` and returning a reference.
+    pub fn hamming_window_mut(&mut self) -> &Self {
+        let len = self.len();
+        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+        for (i, val) in self.data.iter_mut().enumerate() {
+            *val = *val * Complex64::from(hamming(i));
         }
         self
     }
@@ -298,10 +352,10 @@ impl PartialEq for Signal {
     /// Checks if `self` is roughly equal to `other`, to 3 decimal places.
     fn eq(&self, other: &Self) -> bool {
         self.data.iter().zip(other.data.iter()).all(|(a, b)| {
-            let a_real_approx = round_to_place(a.real(), 3);
-            let a_imag_approx = round_to_place(a.imag(), 3);
-            let b_real_approx = round_to_place(b.real(), 3);
-            let b_imag_approx = round_to_place(b.imag(), 3);
+            let a_real_approx = round_to_place(a.real(), EQUALITY_ACCURACY);
+            let a_imag_approx = round_to_place(a.imag(), EQUALITY_ACCURACY);
+            let b_real_approx = round_to_place(b.real(), EQUALITY_ACCURACY);
+            let b_imag_approx = round_to_place(b.imag(), EQUALITY_ACCURACY);
 
             // println!("{a_real_approx} == {b_real_approx}\t&&\t{a_imag_approx} == {b_imag_approx}");
 
@@ -335,11 +389,11 @@ impl Display for Signal {
                     phase = 0.0;
                 } else {
                     mag = match round_place {
-                        Some(x) => round_to_place(mag, x as i32),
+                        Some(x) => round_to_place(mag, x),
                         None => round_to_place(mag, 3),
                     };
                     phase = match round_place {
-                        Some(x) => round_to_place(phase, x as i32),
+                        Some(x) => round_to_place(phase, x),
                         None => round_to_place(phase, 3)
                     };
                 }
@@ -347,11 +401,11 @@ impl Display for Signal {
                 out += &*("".to_string() + &*mag.to_string() + " * e^" + &*phase.to_string() + "j");
             } else {
                 let real = match round_place {
-                    Some(x) => round_to_place(val.real(), x as i32),
+                    Some(x) => round_to_place(val.real(), x),
                     None => round_to_place(val.real(), 3)
                 };
                 let imag = match round_place {
-                    Some(x) => round_to_place(val.imag(), x as i32),
+                    Some(x) => round_to_place(val.imag(), x),
                     None => round_to_place(val.imag(), 3)
                 };
                 out += &*(real.to_string() + " + " + &*imag.to_string() + "j")
@@ -363,8 +417,8 @@ impl Display for Signal {
     }
 }
 
-fn round_to_place(num : f64, place : i32) -> f64 {
-    let factor = 10_f64.powi(place);
+fn round_to_place(num : f64, place : usize) -> f64 {
+    let factor = 10_f64.powi(place as i32);
     (num * factor).round() / factor
 }
 

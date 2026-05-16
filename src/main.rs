@@ -9,15 +9,9 @@ fn main() {
     let signal = Signal::from(
         [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0].as_slice()
     );
-    println!("signal:\t\t{}", signal);
-    println!("signal dft:\t\t{}", signal.forward_dft());
-    println!("signal fft:\t\t{}", signal.radix_2_fft().unwrap());
-    println!("signal dft_idft:\t\t{}", signal.forward_dft().inverse_dft());
-    println!("signal fft_ifft:\t\t{}", signal.radix_2_fft().unwrap().inverse_radix_2_fft().unwrap());
-    println!("signal dft_ifft:\t\t{}", signal.forward_dft().inverse_radix_2_fft().unwrap());
-    println!("signal fft_idft:\t\t{}", signal.radix_2_fft().unwrap().inverse_dft());
-
-    println!("{}", signal.forward_dft() == signal.radix_2_fft().unwrap());
+    println!("signal:\t\t\t{:.100}", signal);
+    println!("signal hann:\t\t{:.100}", signal.clone().hann_window());
+    println!("signal hamming:\t\t{:.100}", signal.hamming_window());
 }
 
 #[cfg(test)]
