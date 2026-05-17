@@ -10,13 +10,11 @@ mod tests {
 
     #[test]
     fn amplitude_change() {
-        let signal = Signal::from(
-            [0.1, 0.2, -6., -7.].as_slice()
-        );
+        let signal = Signal::from([0.1, 0.2, -6., -7.]);
         println!("signal:\t\t\t{}", signal);
         println!("signal amplified:\t{}", signal.clone() * -2.5);
 
-        assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5].as_slice()));
+        assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5]));
     }
 
     #[test]
@@ -35,13 +33,13 @@ mod tests {
         let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);
         println!("recons:\t\t{}", signal_reconstructed);
 
-        assert_eq!(signal_reconstructed, Signal::from([0., 0.245, 0.955, 2.061, 3.455, 5., 6.545, 7.939, 9.045, 9.755, 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 9.755, 9.045, 7.939, 6.545, 5., 3.455, 2.061, 0.955, 0.245].as_slice()));
+        assert_eq!(signal_reconstructed, Signal::from([0., 0.245, 0.955, 2.061, 3.455, 5., 6.545, 7.939, 9.045, 9.755, 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 9.755, 9.045, 7.939, 6.545, 5., 3.455, 2.061, 0.955, 0.245]));
     }
 
     #[test]
     fn stft() {
         let signal = Signal::from(
-            [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.].as_slice()
+            [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
         );
         println!("signal:\t\t{:+}", signal);
         
@@ -74,7 +72,7 @@ mod tests {
     #[test]
     fn dft_fft_and_inverses_work() {
         let signal = Signal::from(
-            [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0].as_slice()
+            [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0]
         );
         println!("signal:\t\t{}", signal);
         println!("signal dft:\t\t{}", signal.forward_dft());
@@ -94,10 +92,10 @@ mod tests {
     #[test]
     fn differentiation_filter() {
         let signal = Signal::from(
-            [0, 5, 10, 3, 3, 3, 3, -3, -3, 0, 0].as_slice()
+            [0, 5, 10, 3, 3, 3, 3, -3, -3, 0, 0]
         );
         let filter = Signal::from(
-            [1., -1.].as_slice()
+            [1., -1.]
         ).zero_extend_end(9);
 
         let differentiated_signal = signal.forward_dft().mul(&filter.forward_dft()).inverse_dft();
@@ -105,16 +103,16 @@ mod tests {
         println!("differentiated: {:#}", differentiated_signal);
 
         // 1-sample offset
-        assert_eq!(differentiated_signal, Signal::from([0, 5, 5, -7, 0, 0, 0, -6, 0, 3, 0].as_slice()));
+        assert_eq!(differentiated_signal, Signal::from([0, 5, 5, -7, 0, 0, 0, -6, 0, 3, 0]));
     }
 
     #[test]
     fn convolve_with_impulse_is_unchanged() {
         let signal = Signal::from(
-            [1, 0, -1, 0].as_slice()
+            [1, 0, -1, 0]
         );
         let ir = Signal::from(
-            [1, 0, 0, 0].as_slice()
+            [1, 0, 0, 0]
         );
         
         println!("signal: {}, ir: {}", signal, ir);
@@ -129,20 +127,20 @@ mod tests {
 
     #[test]
     fn inverse() {
-        let s = Signal::from([0, 1, 0, -1].as_slice());
+        let s = Signal::from([0, 1, 0, -1]);
         println!("s:\t\t{}\ns_dft:\t\t{}\ns_dft_idft:\t{}", s, s.forward_dft(), s.forward_dft().inverse_dft());
         assert_eq!(s, s.forward_dft().inverse_dft());
     }
 
     #[test]
     fn linearity() {
-        let signal = Signal::from([1, 0, -1, 0].as_slice());
-        let dc = Signal::from([1, 1, 1, 1].as_slice());
+        let signal = Signal::from([1, 0, -1, 0]);
+        let dc = Signal::from([1, 1, 1, 1]);
 
         let mut signal_dft = signal.forward_dft();
         let dc_dft = dc.forward_dft();
 
-        let signal_plus_dc = Signal::from([2, 1, 0, 1].as_slice());
+        let signal_plus_dc = Signal::from([2, 1, 0, 1]);
 
         let combine_dft = signal_plus_dc.forward_dft();
 

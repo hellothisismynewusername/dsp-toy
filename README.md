@@ -17,6 +17,6 @@ dsp_toy_lib = { git = "https://github.com/hellothisismynewusername/dsp-toy.git" 
 ```
 (Or whatever my username is currently)
 
-Then build a `dsp_toy_lib::signal::Signal` using `Signal::from()` (slice or iterator).
+Then build a `dsp_toy_lib::signal::Signal` using `Signal::from()` (array, slice, or iterator).
 
 For demos of what you can do with this library, see tests in `src/dsp-toy-lib/lib.rs`.

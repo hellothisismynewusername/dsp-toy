@@ -22,7 +22,7 @@ impl Signal {
 
     /// Performs DFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn forward_dft(&self) -> Signal {
-        let mut data_tmp = Vec::new();
+        let mut data_tmp = Vec::with_capacity(self.len());
 
         for k in 0..self.len() {
             // polar form calculation, but signal will be in cartesian
@@ -39,7 +39,7 @@ impl Signal {
         Signal { data: data_tmp }
     }
 
-    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
+    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
     pub fn radix_2_fft(&self) -> Result<Signal, ()> {
         match self.len().is_power_of_two() {
             true => Ok(Signal { data: Self::r2fft(&self.data).to_vec() }),
@@ -85,7 +85,7 @@ impl Signal {
 
     /// Performs Inverse DFT, producing a time domain `Signal`; does not modify/consume `self`.
     pub fn inverse_dft(&self) -> Signal {
-        let mut data_tmp : Vec<Complex64> = Vec::new();
+        let mut data_tmp : Vec<Complex64> = Vec::with_capacity(self.len());
 
         for n in 0..self.len() {
             let tmp = self.data.iter().enumerate().map(|(k, val)| {
@@ -102,7 +102,7 @@ impl Signal {
         Signal { data: data_tmp }
     }
 
-    /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`.
+    /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
     pub fn inverse_radix_2_fft(&self) -> Result<Signal, ()> {
         match self.len().is_power_of_two() {
             true => Ok(Signal { data: Self::ir2fft(&self.data).to_vec() }),
@@ -290,33 +290,34 @@ impl Signal {
 
 // -------------- TRAIT IMPLEMENTATIONS
 
-impl From<&[Complex64]> for Signal {
-    fn from(data: &[Complex64]) -> Self {
-        Signal { data: Vec::from(data) }
-    }
-}
-
-impl From<&[f64]> for Signal {
-    fn from(data: &[f64]) -> Self {
+impl<T> From<&[T]> for Signal
+where 
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    Complex64: From<T>
+{
+    fn from(data: &[T]) -> Self {
         let tmp = data.iter().map(|x| Complex64::from(*x));
         Signal { data: Vec::from_iter(tmp) }
     }
 }
 
-impl From<&[isize]> for Signal {
-    fn from(data: &[isize]) -> Self {
-        let tmp = data.iter().map(|x| Complex64::from(*x as f64));
-        Signal { data: Vec::from_iter(tmp) }
-    }
-}
-
-impl<T> From<&mut dyn Iterator<Item = T>> for Signal
+impl<T, const N : usize> From<[T; N]> for Signal
 where 
     T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
     Complex64: From<T>
 {
-    fn from(value: &mut dyn Iterator<Item = T>) -> Self {
-        let tmp : Vec<Complex64> = value.map(|x| Complex64::from(x)).collect();
+    fn from(value: [T; N]) -> Self {
+        Signal { data: value.iter().map(|x| Complex64::from(*x)).collect() }
+    }
+}
+
+impl<T> FromIterator<T> for Signal
+where 
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    Complex64: From<T>
+{
+    fn from_iter<A: IntoIterator<Item = T>>(iter: A) -> Self {
+        let tmp : Vec<Complex64> = iter.into_iter().map(|x| Complex64::from(x)).collect();
         Signal { data: tmp }
     }
 }
