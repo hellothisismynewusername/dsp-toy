@@ -1,6 +1,7 @@
 pub mod consts;
 pub mod signal;
 pub mod utility;
+pub mod math;
 
 #[cfg(test)]
 mod tests {
@@ -52,14 +53,14 @@ mod tests {
         let b = windows.pop_front().unwrap(); // mainly second part of the signal
         // of course, a good amount of leakage is present
 
-        println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", a.radix_2_fft().unwrap(), b.radix_2_fft().unwrap());
+        println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", a.radix_2_fft_new().unwrap(), b.radix_2_fft_new().unwrap());
 
         println!("reconstructed:\t{:+}", a.clone().overlap(&b, hop_size));
 
         // bins at which fundamental frequencies land in
-        let a_fft_nyquist_bin = a.radix_2_fft().unwrap().data[8];
-        let b_fft_bin_4 = b.radix_2_fft().unwrap().data[4];
-        let b_fft_bin_12 = b.radix_2_fft().unwrap().data[12]; // b bin 4's corresponding negative frequency
+        let a_fft_nyquist_bin = a.radix_2_fft_new().unwrap().data[8];
+        let b_fft_bin_4 = b.radix_2_fft_new().unwrap().data[4];
+        let b_fft_bin_12 = b.radix_2_fft_new().unwrap().data[12]; // b bin 4's corresponding negative frequency
 
         // assert that the magnitude at the nyquist bin (which is the bin that holds the fundamental) in a is the loudest
         assert!(a.data.iter().all(|x| a_fft_nyquist_bin.real() >= x.real()));
@@ -74,19 +75,27 @@ mod tests {
         let signal = Signal::from(
             [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0]
         );
-        println!("signal:\t\t{}", signal);
-        println!("signal dft:\t\t{}", signal.forward_dft());
-        println!("signal fft:\t\t{}", signal.radix_2_fft().unwrap());
-        println!("signal dft_idft:\t\t{}", signal.forward_dft().inverse_dft());
-        println!("signal fft_ifft:\t\t{}", signal.radix_2_fft().unwrap().inverse_radix_2_fft().unwrap());
-        println!("signal dft_ifft:\t\t{}", signal.forward_dft().inverse_radix_2_fft().unwrap());
-        println!("signal fft_idft:\t\t{}", signal.radix_2_fft().unwrap().inverse_dft());
 
-        assert_eq!(signal.forward_dft(), signal.radix_2_fft().unwrap());
-        assert_eq!(signal.forward_dft().inverse_dft(), signal);
-        assert_eq!(signal.radix_2_fft().unwrap().inverse_radix_2_fft().unwrap(), signal);
-        assert_eq!(signal.forward_dft().inverse_dft(), signal.radix_2_fft().unwrap().inverse_radix_2_fft().unwrap());
-        assert_eq!(signal.radix_2_fft().unwrap().inverse_radix_2_fft().unwrap(), signal.forward_dft().inverse_dft());
+        let dft = signal.forward_dft();
+        let dft_idft = dft.inverse_dft();
+        let fft = signal.radix_2_fft_new().unwrap();
+        let fft_ifft = fft.inverse_radix_2_fft_new().unwrap();
+        let dft_ifft = dft.inverse_radix_2_fft_new().unwrap();
+        let fft_idft = fft.inverse_dft();
+
+        println!("signal:\t\t{}", signal);
+        println!("signal dft:\t\t{}", dft);
+        println!("signal fft:\t\t{}", fft);
+        println!("signal dft_idft:\t\t{}", dft_idft);
+        println!("signal fft_ifft:\t\t{}", fft_ifft);
+        println!("signal dft_ifft:\t\t{}", dft_ifft);
+        println!("signal fft_idft:\t\t{}", fft_idft);
+
+        assert_eq!(dft, fft);
+        assert_eq!(dft_idft, signal);
+        assert_eq!(fft_ifft, signal);
+        assert_eq!(dft_idft, fft_ifft);
+        assert_eq!(dft_ifft, fft_idft);
     }
 
     #[test]
@@ -118,6 +127,8 @@ mod tests {
         println!("signal: {}, ir: {}", signal, ir);
 
         let ir_dft = ir.forward_dft();
+
+        // Convolution by doing multiplication in the frequency domain
         let signal_final = signal.forward_dft().mul(&ir_dft).inverse_dft();
 
         println!("signal final {}", signal_final);

@@ -11,8 +11,9 @@ fn main() {
 
     let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false).unwrap();
 
-    println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", windows[0].radix_2_fft().unwrap(), windows[1].radix_2_fft().unwrap());
-
     let a = windows.pop_front().unwrap();
-    println!("reconstructed:\t{:+}", a.overlap(&windows[0], hop_size));
+    let b = windows.pop_front().unwrap();
+
+    println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", a.radix_2_fft_new().unwrap(), b.radix_2_fft_new().unwrap());
+    println!("reconstructed:\t{:+}", a.overlap(&b, hop_size));
 }

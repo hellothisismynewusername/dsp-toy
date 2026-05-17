@@ -1,7 +1,7 @@
-use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul, Sub}};
+use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Div, Mul, Sub}};
 
 use easy_complex::{Complex64};
-use crate::consts::{EQUALITY_ACCURACY, EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA};
+use crate::{consts::{EQUALITY_ACCURACY, EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA}, math};
 use crate::utility::{j, round_to_place};
 
 #[derive(Debug, Clone)]
@@ -21,128 +21,44 @@ impl Signal {
     }
 
     /// Performs DFT, producing a frequency domain `Signal`; does not modify/consume `self`.
-    pub fn forward_dft(&self) -> Signal {
-        let mut data_tmp = Vec::with_capacity(self.len());
-
-        for k in 0..self.len() {
-            // polar form calculation, but signal will be in cartesian
-            let tmp = self.data.iter().enumerate().map(|(n, val)| {
-                *val * Complex64::from(EULER).powc(
-                        Complex64::from(-1.) * j() * (Complex64::from(2. * PI) / Complex64::from(self.len() as f64)) * Complex64::from(k as f64) * Complex64::from(n as f64)
-                    )
-            }).reduce(|sum, x| {
-                sum + x
-            });
-
-            data_tmp.push(tmp.unwrap());
-        }
-        Signal { data: data_tmp }
+    pub fn forward_dft(&self) -> Self {
+        Signal { data: math::dft(&self.data) }
     }
 
-    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
-    pub fn radix_2_fft(&self) -> Result<Signal, ()> {
+    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; consumes and returns `self`. Fails if length is not a power of 2.
+    pub fn radix_2_fft(mut self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: Self::r2fft(&self.data).to_vec() }),
+            true => Ok(Signal { data: math::r2fft(&mut self.data).to_vec() }),
             false => Err(())
         }
     }
 
-    fn r2fft(data : &[Complex64]) -> Vec<Complex64> {
-        if data.len() <= 1 {
-            Vec::from(data)
-        } else {
-            let n = data.len();
-
-            let evens : Box<[Complex64]> = data.iter()
-                .enumerate()
-                .filter(|(i, _)| i % 2 == 0)
-                .map(|(_, x)| *x)
-                .collect();
-            let odds : Box<[Complex64]>  = data.iter()
-                .enumerate()
-                .filter(|(i, _)| i % 2 == 1)
-                .map(|(_, x)| *x)
-                .collect();
-
-            let evens_fft = Self::r2fft(evens.iter().as_slice());
-            let odds_fft = Self::r2fft(odds.iter().as_slice());
-
-            let angle = (-2. * PI) / n as f64;
-            let twiddle_n = Complex64::new(angle.cos(), angle.sin());
-
-            let mut twiddle = Complex64::from(1);
-            let mut out = vec![Complex64::from(0); n];
-
-            for j in 0..(n / 2) {
-                out[j] = evens_fft[j] + twiddle * odds_fft[j];
-                out[j + n / 2] = evens_fft[j] - twiddle * odds_fft[j];
-                twiddle = twiddle * twiddle_n;
-            }
-
-            out
+    /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
+    pub fn radix_2_fft_new(&self) -> Result<Self, ()> {
+        match self.len().is_power_of_two() {
+            true => Ok(Signal { data: math::r2fft(&mut self.data.clone()).to_vec() }),
+            false => Err(())
         }
     }
 
     /// Performs Inverse DFT, producing a time domain `Signal`; does not modify/consume `self`.
-    pub fn inverse_dft(&self) -> Signal {
-        let mut data_tmp : Vec<Complex64> = Vec::with_capacity(self.len());
-
-        for n in 0..self.len() {
-            let tmp = self.data.iter().enumerate().map(|(k, val)| {
-                *val * Complex64::from(EULER).powc(
-                    j() * (Complex64::from(2. * PI) / Complex64::from(self.len() as f64)) * Complex64::from(k as f64) * Complex64::from(n as f64)
-                )
-            }).reduce(|sum, x| {
-                sum + x
-            }).unwrap() / Complex64::from(self.len() as f64);
-
-            data_tmp.push(tmp);
-        }
-
-        Signal { data: data_tmp }
+    pub fn inverse_dft(&self) -> Self {
+        Signal { data: math::idft(&self.data) }
     }
 
-    /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
-    pub fn inverse_radix_2_fft(&self) -> Result<Signal, ()> {
+    /// Performs Inverse Radix-2 FFT; consumes and returns `self`. Fails if length is not a power of 2.
+    pub fn inverse_radix_2_fft(mut self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: Self::ir2fft(&self.data).to_vec() }),
+            true => Ok(Signal { data: math::ir2fft(&mut self.data).to_vec() }),
             false => Err(())
         }
     }
 
-    fn ir2fft(data : &[Complex64]) -> Vec<Complex64> {
-        if data.len() <= 1 {
-            Vec::from(data)
-        } else {
-            let n = data.len();
-
-            let evens_fft : Box<[Complex64]> = data.iter()
-                .enumerate()
-                .filter(|(i, _)| i % 2 == 0)
-                .map(|(_, x)| *x)
-                .collect();
-            let odds_fft : Box<[Complex64]>  = data.iter()
-                .enumerate()
-                .filter(|(i, _)| i % 2 == 1)
-                .map(|(_, x)| *x)
-                .collect();
-
-            let evens = Self::ir2fft(evens_fft.iter().as_slice());
-            let odds = Self::ir2fft(odds_fft.iter().as_slice());
-
-            let angle = (-2. * PI) / n as f64;
-            let twiddle_n_bar = Complex64::new(angle.cos(), -1. * angle.sin());
-
-            let mut twiddle_bar = Complex64::from(1);
-            let mut out = vec![Complex64::from(0); n];
-
-            for j in 0..(n / 2) {
-                out[j] = (evens[j] + twiddle_bar * odds[j]) / Complex64::from(2);
-                out[j + n / 2] = (evens[j] - twiddle_bar * odds[j]) / Complex64::from(2);
-                twiddle_bar = twiddle_bar * twiddle_n_bar;
-            }
-
-            out
+    /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
+    pub fn inverse_radix_2_fft_new(&self) -> Result<Self, ()> {
+        match self.len().is_power_of_two() {
+            true => Ok(Signal { data: math::ir2fft(&mut self.data.clone()).to_vec() }),
+            false => Err(())
         }
     }
 
@@ -203,9 +119,8 @@ impl Signal {
         } else {
             self.len()
         };
-        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(hann(i));
+            *val = *val * Complex64::from(math::hann(i, len));
         }
         self
     }
@@ -217,9 +132,8 @@ impl Signal {
         } else {
             self.len()
         };
-        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(hann(i));
+            *val = *val * Complex64::from(math::hann(i, len));
         }
         self
     }
@@ -231,9 +145,8 @@ impl Signal {
         } else {
             self.len()
         };
-        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(hamming(i));
+            *val = *val * Complex64::from(math::hamming(i, len));
         }
         self
     }
@@ -245,9 +158,8 @@ impl Signal {
         } else {
             self.len()
         };
-        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(hamming(i));
+            *val = *val * Complex64::from(math::hamming(i, len));
         }
         self
     }
@@ -354,6 +266,38 @@ impl Add<&Signal> for Signal {
     }
 }
 
+impl<'a> Sub<&Signal> for &'a mut Signal {
+    type Output = &'a mut Signal;
+
+    /// Subtract `rhs` from `self`, returning the element-wise difference. Importantly, `self` is mutated but not consumed; it holds the difference.
+    fn sub(self, rhs: &Signal) -> Self::Output {
+        if rhs.len() != self.len() {
+            eprintln!("Subtracting signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+            self.data[i] = self.data[i] - rhs.data[i];
+        }
+
+        self
+    }
+}
+
+impl Sub<&Signal> for Signal {
+    type Output = Signal;
+
+    /// Subtract `rhs` from `self`, consuming `self` and returning the element-wise difference.
+    fn sub(mut self, rhs: &Signal) -> Self::Output {
+        if rhs.len() != self.len() {
+            eprintln!("Subtracting signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+            self.data[i] = self.data[i] - rhs.data[i];
+        }
+
+        self
+    }
+}
+
 impl<'a> Mul<&Signal> for &'a mut Signal {
     type Output = &'a mut Signal;
 
@@ -380,6 +324,38 @@ impl Mul<&Signal> for Signal {
         }
         for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
+        }
+
+        self
+    }
+}
+
+impl<'a> Div<&Signal> for &'a mut Signal {
+    type Output = &'a mut Signal;
+
+    /// Divide `self` by `rhs`, returning the element-wise quotient. Importantly, `self` is mutated but not consumed; it holds the quotient.
+    fn div(self, rhs: &Signal) -> Self::Output {
+        if rhs.len() != self.len() {
+            eprintln!("Dividing signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+            self.data[i] = self.data[i] / rhs.data[i];
+        }
+
+        self
+    }
+}
+
+impl Div<&Signal> for Signal {
+    type Output = Signal;
+
+    /// Divide `self` by `rhs`, consuming `self` and returning the element-wise quotient.
+    fn div(mut self, rhs: &Signal) -> Self::Output {
+        if rhs.len() != self.len() {
+            eprintln!("Dividing signals of different length ({} and {})", self.len(), rhs.len());
+        }
+        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+            self.data[i] = self.data[i] / rhs.data[i];
         }
 
         self
