@@ -196,9 +196,13 @@ impl Signal {
     }
 
     /// Applies the Hann window to the `Signal`, returning the consumed `Signal`.
-    pub fn hann_window(mut self) -> Self {
-        let len = self.len();
-        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+    pub fn hann_window(mut self, symmetric : bool) -> Self {
+        let len = if symmetric {
+            self.len() - 1
+        } else {
+            self.len()
+        };
+        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
             *val = *val * Complex64::from(hann(i));
         }
@@ -206,9 +210,13 @@ impl Signal {
     }
 
     /// Applies the Hann window to the `Signal`, mutating `self` and returning a reference.
-    pub fn hann_window_mut(&mut self) -> &Self {
-        let len = self.len();
-        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+    pub fn hann_window_mut(&mut self, symmetric : bool) -> &Self {
+        let len = if symmetric {
+            self.len() - 1
+        } else {
+            self.len()
+        };
+        let hann = |n : usize| 0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
             *val = *val * Complex64::from(hann(i));
         }
@@ -216,9 +224,13 @@ impl Signal {
     }
 
     /// Applies the Hamming window to the `Signal`, returning the consumed `Signal`.
-    pub fn hamming_window(mut self) -> Self {
-        let len = self.len();
-        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+    pub fn hamming_window(mut self, symmetric : bool) -> Self {
+        let len = if symmetric {
+            self.len() - 1
+        } else {
+            self.len()
+        };
+        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
             *val = *val * Complex64::from(hamming(i));
         }
@@ -226,13 +238,52 @@ impl Signal {
     }
 
     /// Applies the Hamming window to the `Signal`, mutating `self` and returning a reference.
-    pub fn hamming_window_mut(&mut self) -> &Self {
-        let len = self.len();
-        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / (len as f64 - 1.)).cos();
+    pub fn hamming_window_mut(&mut self, symmetric : bool) -> &Self {
+        let len = if symmetric {
+            self.len() - 1
+        } else {
+            self.len()
+        };
+        let hamming = |n : usize| HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos();
         for (i, val) in self.data.iter_mut().enumerate() {
             *val = *val * Complex64::from(hamming(i));
         }
         self
+    }
+
+    /// Concatenates `other` to `self`, returning the concatenated signal.
+    pub fn concat(mut self, other : &Signal) -> Self {
+        self.data.extend_from_slice(&other.data);
+        self
+    }
+
+    /// Overlaps `other` onto `self`, performing element-wise addition beginning at index `offset`. 
+    /// 
+    /// Modifies and consumes `self` and returns the final signal.
+    pub fn overlap(mut self, other : &Signal, offset : usize) -> Self {
+        let overlap_len = self.len() - offset;
+        self.data.resize(self.len() + (other.len() - overlap_len), Complex64::from(0));
+
+        for i in offset..self.data.len() {
+            self.data[i] = self.data[i] + other.data[i - offset];
+        }
+
+        self
+    }
+
+    pub fn windows(
+        &self,
+        window_size : usize,
+        hop_size : usize,
+        windows_num : usize,
+        window_function : impl Fn(Self, bool) -> Self, symmetric : bool
+    ) -> Result<VecDeque<Signal>, ()> {
+        let mut out = VecDeque::new();
+        for i in 0..windows_num {
+            out.push_back(window_function(self.crop_new(hop_size * i, hop_size * i + window_size), symmetric));
+        }
+
+        Ok(out)
     }
 }
 
@@ -370,7 +421,11 @@ impl PartialEq for Signal {
 }
 
 impl Display for Signal {
-    /// Display the entries of the signal data, to an accuracy of 3 decimal places.
+    /// Display the entries of the signal data, in polar form by default.
+    /// 
+    /// - `.*` (precision) flag affects to what place values are rounded to. Default is 3 decimal places.
+    /// - `#` (alternate) flag prints in cartesian form.
+    /// - `+` (plus) flag removes the `* e ^ _j` part, polar form only.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = "[".to_string();
         let round_place = f.precision();
@@ -398,7 +453,10 @@ impl Display for Signal {
                     };
                 }
 
-                out += &*("".to_string() + &*mag.to_string() + " * e^" + &*phase.to_string() + "j");
+                out += &*("".to_string() + &*mag.to_string());
+                if !f.sign_plus() {
+                    out += &*(" * e^".to_string() + &*phase.to_string() + "j");
+                }
             } else {
                 let real = match round_place {
                     Some(x) => round_to_place(val.real(), x),

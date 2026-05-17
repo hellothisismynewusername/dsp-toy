@@ -7,11 +7,19 @@ mod signal;
 
 fn main() {
     let signal = Signal::from(
-        [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0].as_slice()
+        [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.].as_slice()
     );
-    println!("signal:\t\t\t{:.100}", signal);
-    println!("signal hann:\t\t{:.100}", signal.clone().hann_window());
-    println!("signal hamming:\t\t{:.100}", signal.hamming_window());
+    println!("signal:\t\t{:+}", signal);
+    
+    let window_size = 16;
+    let hop_size = 8;
+
+    let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false).unwrap();
+
+    println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", windows[0].radix_2_fft().unwrap(), windows[1].radix_2_fft().unwrap());
+
+    let a = windows.pop_front().unwrap();
+    println!("reconstructed:\t{:+}", a.overlap(&windows[0], hop_size));
 }
 
 #[cfg(test)]
@@ -28,6 +36,53 @@ mod tests {
         println!("signal amplified:\t{}", signal.clone() * -2.5);
 
         assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5].as_slice()));
+    }
+
+    #[test]
+    fn windowing() {
+        let signal = Signal::from(
+            [10].repeat(40).as_slice()
+        );
+        println!("signal:\t\t{}", signal);
+        
+        let window_size = 20;
+        let hop_size = 10;
+
+        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false).unwrap();
+
+        let a = windows.pop_front().unwrap();
+        let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);
+        println!("recons:\t\t{}", signal_reconstructed);
+
+        assert_eq!(signal_reconstructed, Signal::from([0., 0.245, 0.955, 2.061, 3.455, 5., 6.545, 7.939, 9.045, 9.755, 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 9.755, 9.045, 7.939, 6.545, 5., 3.455, 2.061, 0.955, 0.245].as_slice()));
+    }
+
+    #[test]
+    fn stft() {
+        let signal = Signal::from(
+            [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.].as_slice()
+        );
+        println!("signal:\t\t{:+}", signal);
+        
+        let window_size = 16;
+        let hop_size = 8;
+
+        let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false).unwrap();
+
+        let a = windows.pop_front().unwrap();
+        let b = windows.pop_front().unwrap();
+
+        println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", a.radix_2_fft().unwrap(), b.radix_2_fft().unwrap());
+
+        println!("reconstructed:\t{:+}", a.clone().overlap(&b, hop_size));
+
+        let a_fft_nyquist_bin = a.radix_2_fft().unwrap().data[8];
+        let b_fft_bin_4 = b.radix_2_fft().unwrap().data[4];
+        let b_fft_bin_12 = b.radix_2_fft().unwrap().data[12];
+
+        assert!(a.data.iter().all(|x| a_fft_nyquist_bin.real() >= x.real()));
+        assert_eq!(b_fft_bin_4, b_fft_bin_12.conjugate());
+        assert!(b.data.iter().all(|x| b_fft_bin_4.real() >= x.real()));
     }
 
     #[test]
