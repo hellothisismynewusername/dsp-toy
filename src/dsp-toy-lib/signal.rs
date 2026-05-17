@@ -1,7 +1,8 @@
-use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul, Sub}, process::Output};
+use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Mul, Sub}};
 
-use easy_complex::{Complex, Complex64};
+use easy_complex::{Complex64};
 use crate::consts::{EQUALITY_ACCURACY, EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA};
+use crate::utility::{j, round_to_place};
 
 #[derive(Debug, Clone)]
 pub struct Signal {
@@ -287,6 +288,8 @@ impl Signal {
     }
 }
 
+// -------------- TRAIT IMPLEMENTATIONS
+
 impl From<&[Complex64]> for Signal {
     fn from(data: &[Complex64]) -> Self {
         Signal { data: Vec::from(data) }
@@ -345,7 +348,7 @@ impl<'a> Mul<&Signal> for &'a mut Signal {
     /// Multiply `self` by `rhs`, returning the element-wise product. Importantly, `self` is mutated but not consumed; it holds the product.
     fn mul(self, rhs: &Signal) -> Self::Output {
         if rhs.len() != self.len() {
-            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+            eprintln!("Multiplying signals of different length ({} and {})", self.len(), rhs.len());
         }
         for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
@@ -361,7 +364,7 @@ impl Mul<&Signal> for Signal {
     /// Multiply `self` by `rhs`, consuming `self` and returning the element-wise product.
     fn mul(mut self, rhs: &Signal) -> Self::Output {
         if rhs.len() != self.len() {
-            eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
+            eprintln!("Multiplying signals of different length ({} and {})", self.len(), rhs.len());
         }
         for i in 0..usize::max(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
@@ -371,6 +374,7 @@ impl Mul<&Signal> for Signal {
     }
 }
 
+// Scalar multiplication
 impl<'a, T> Mul<T> for &'a mut Signal
 where 
     T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
@@ -385,6 +389,7 @@ where
     }
 }
 
+// Scalar multiplication
 impl<T> Mul<T> for Signal
 where 
     T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
@@ -473,13 +478,4 @@ impl Display for Signal {
         
         write!(f, "{}", out)
     }
-}
-
-fn round_to_place(num : f64, place : usize) -> f64 {
-    let factor = 10_f64.powi(place as i32);
-    (num * factor).round() / factor
-}
-
-fn j() -> Complex64 {
-    Complex64::new(0., 1.)
 }

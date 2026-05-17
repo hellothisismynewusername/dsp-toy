@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "dsp"
+name = "dsp_toy"
 version = "0.1.0"
 dependencies = [
  "easy_complex",
