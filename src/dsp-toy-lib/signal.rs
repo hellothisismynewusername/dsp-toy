@@ -310,6 +310,17 @@ impl From<&[isize]> for Signal {
     }
 }
 
+impl<T> From<&mut dyn Iterator<Item = T>> for Signal
+where 
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    Complex64: From<T>
+{
+    fn from(value: &mut dyn Iterator<Item = T>) -> Self {
+        let tmp : Vec<Complex64> = value.map(|x| Complex64::from(x)).collect();
+        Signal { data: tmp }
+    }
+}
+
 impl<'a> Add<&Signal> for &'a mut Signal {
     type Output = &'a mut Signal;
 
