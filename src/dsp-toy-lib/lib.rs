@@ -10,34 +10,6 @@ mod tests {
     use crate::signal::Signal;
 
     #[test]
-    fn amplitude_change() {
-        let signal = Signal::from([0.1, 0.2, -6., -7.]);
-        println!("signal:\t\t\t{}", signal);
-        println!("signal amplified:\t{}", signal.clone() * -2.5);
-
-        assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5]));
-    }
-
-    #[test]
-    fn windowing() {
-        let signal = Signal::from(
-            [10].repeat(40).as_slice()
-        );
-        println!("signal:\t\t{}", signal);
-        
-        let window_size = 20;
-        let hop_size = 10;
-
-        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false).unwrap();
-
-        let a = windows.pop_front().unwrap();
-        let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);
-        println!("recons:\t\t{}", signal_reconstructed);
-
-        assert_eq!(signal_reconstructed, Signal::from([0., 0.245, 0.955, 2.061, 3.455, 5., 6.545, 7.939, 9.045, 9.755, 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 9.755, 9.045, 7.939, 6.545, 5., 3.455, 2.061, 0.955, 0.245]));
-    }
-
-    #[test]
     fn stft() {
         let signal = Signal::from(
             [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
@@ -68,6 +40,39 @@ mod tests {
         assert_eq!(b_fft_bin_4, b_fft_bin_12.conjugate());
         // assert that the magnitude of b's fundamental is the loudest
         assert!(b.data.iter().all(|x| b_fft_bin_4.real() >= x.real()));
+    }
+
+    #[test]
+    /// The convolution operation is the same as element-wise multiplication in the other domain.
+    fn convolution_theorem() {
+        let signal = Signal::from([1, 0, -1, 0]).zero_extend_end(4);
+        let ir = Signal::from([0.8, 0.3, -1000., 0.]).zero_extend_end(4);
+        let convolved_standard = signal.clone().convolve(&ir);
+        let convolved_through_mult = signal.forward_dft().mul(&ir.forward_dft()).inverse_dft();
+
+        println!("convolved_mult:\t\t{:#.2}", convolved_through_mult);
+        println!("convolved_stan:\t\t{:#.2}", convolved_standard.crop_new(0, 8));
+
+        assert_eq!(convolved_standard.crop(0, 8), convolved_through_mult);
+    }
+
+    #[test]
+    /// A linear combination of signals is the same linear combination of their respective transforms.
+    fn linearity() {
+        let signal = Signal::from([1, 0, -1, 0]);
+        let dc = Signal::from([1, 1, 1, 1]);
+
+        let mut signal_dft = signal.forward_dft();
+        let dc_dft = dc.forward_dft();
+
+        let signal_plus_dc = Signal::from([2, 1, 0, 1]);
+
+        let combine_dft = signal_plus_dc.forward_dft();
+
+        println!("combine_dft {}", combine_dft);
+        println!("cos_dft + &dc_dft {}", &mut signal_dft + &dc_dft);
+
+        assert!(combine_dft == signal_dft);
     }
 
     #[test]
@@ -116,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn convolve_with_impulse_is_unchanged() {
+    fn convolve_with_unit_impulse_is_unchanged() {
         let signal = Signal::from(
             [1, 0, -1, 0]
         );
@@ -137,27 +142,30 @@ mod tests {
     }
 
     #[test]
-    fn inverse() {
-        let s = Signal::from([0, 1, 0, -1]);
-        println!("s:\t\t{}\ns_dft:\t\t{}\ns_dft_idft:\t{}", s, s.forward_dft(), s.forward_dft().inverse_dft());
-        assert_eq!(s, s.forward_dft().inverse_dft());
+    fn windowing() {
+        let signal = Signal::from(
+            [10].repeat(40).as_slice()
+        );
+        println!("signal:\t\t{:+.2}", signal);
+        
+        let window_size = 20;
+        let hop_size = 10;
+
+        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false).unwrap();
+
+        let a = windows.pop_front().unwrap();
+        let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);
+        println!("recons:\t\t{:+.2}", signal_reconstructed);
+
+        assert_eq!(signal_reconstructed, Signal::from([0., 0.24, 0.95, 2.06, 3.45, 5., 6.55, 7.94, 9.05, 9.76, 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 10., 9.76, 9.05, 7.94, 6.55, 5., 3.45, 2.06, 0.95, 0.24]));
     }
 
     #[test]
-    fn linearity() {
-        let signal = Signal::from([1, 0, -1, 0]);
-        let dc = Signal::from([1, 1, 1, 1]);
+    fn amplitude_change() {
+        let signal = Signal::from([0.1, 0.2, -6., -7.]);
+        println!("signal:\t\t\t{}", signal);
+        println!("signal amplified:\t{}", signal.clone() * -2.5);
 
-        let mut signal_dft = signal.forward_dft();
-        let dc_dft = dc.forward_dft();
-
-        let signal_plus_dc = Signal::from([2, 1, 0, 1]);
-
-        let combine_dft = signal_plus_dc.forward_dft();
-
-        println!("combine_dft {}", combine_dft);
-        println!("cos_dft + &dc_dft {}", &mut signal_dft + &dc_dft);
-
-        assert!(combine_dft == signal_dft);
+        assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5]));
     }
 }

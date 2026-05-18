@@ -4,15 +4,29 @@ use easy_complex::Complex64;
 
 use crate::{consts::{EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA}, utility::j};
 
-pub fn hann(n : usize, len : usize) -> f64 {
-    0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos()
+/// Compute convolution without transforming signals to frequency domain, producing the convolved output. Generally less performant than FFT with multiplication.
+pub fn convolve(data : &[Complex64], ir : &[Complex64]) -> Vec<Complex64> {
+    let mut out = vec![Complex64::from(0); data.len() + ir.len() - 1];
+    for k in 0..out.len() {
+        let sum  = data.iter().enumerate().map(|(i, val)| {
+            let ir_val = *k
+                .checked_sub(i)
+                .and_then(|ind| ir.get(ind))
+                .unwrap_or(&Complex64::from(0));
+
+            *val * ir_val
+        }).reduce(|sum, x| {
+            sum + x
+        }).unwrap_or(Complex64::from(0));
+        out[k] = sum;
+    }
+
+    out
 }
 
-pub fn hamming(n : usize, len : usize) -> f64 {
-    HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos()
-}
+// ------------------- FOURIER
 
-/// Compute DFT
+/// Compute DFT.
 pub fn dft(data : &[Complex64]) -> Vec<Complex64> {
     let mut data_tmp = Vec::with_capacity(data.len());
 
@@ -52,10 +66,8 @@ pub fn idft(data : &[Complex64]) -> Vec<Complex64> {
 }
 
 /// Compute Radix-2 FFT, using Bit-reversal permutation.
-pub fn r2fft(data : &mut [Complex64]) -> &mut [Complex64] {
-    if data.len() <= 1 {
-        data
-    } else {
+pub fn r2fft(data : &mut [Complex64]) {
+    if data.len() > 1 {
         let n = data.len();
 
         let bits_num = n.trailing_zeros();
@@ -87,16 +99,12 @@ pub fn r2fft(data : &mut [Complex64]) -> &mut [Complex64] {
                 }
             }
         }
-
-        data
     }
 }
 
 /// Compute Inverse Radix-2 FFT, using Bit-reversal permutation.
-pub fn ir2fft(data : &mut [Complex64]) -> &mut [Complex64] {
-    if data.len() <= 1 {
-        data
-    } else {
+pub fn ir2fft(data : &mut [Complex64]) {
+    if data.len() > 1 {
         let n = data.len();
 
         let bits_num = n.trailing_zeros();
@@ -130,7 +138,6 @@ pub fn ir2fft(data : &mut [Complex64]) -> &mut [Complex64] {
         }
 
         data.iter_mut().for_each(|x| *x = *x / Complex64::from(n as f64));
-        data
     }
 }
 
@@ -204,4 +211,14 @@ pub fn ir2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
 
         out
     }
+}
+
+// ----------- WINDOW FUNCTIONS
+
+pub fn hann(n : usize, len : usize) -> f64 {
+    0.5 - 0.5 * ((2. * PI * n as f64) / len as f64).cos()
+}
+
+pub fn hamming(n : usize, len : usize) -> f64 {
+    HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos()
 }

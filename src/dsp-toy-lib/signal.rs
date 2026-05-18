@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, f64::consts::PI, fmt::Display, ops::{Add, Div, Mul, Sub}};
+use std::{collections::VecDeque, fmt::Display, ops::{Add, Div, Mul, Sub}};
 
 use easy_complex::{Complex64};
-use crate::{consts::{EQUALITY_ACCURACY, EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA}, math};
-use crate::utility::{j, round_to_place};
+use crate::{math, utility::equality_accuracy};
+use crate::utility::{round_to_place};
 
 #[derive(Debug, Clone)]
 pub struct Signal {
@@ -20,6 +20,11 @@ impl Signal {
         self.data.len()
     }
 
+    /// Convolves with signal `other`, consuming and returning `self`.
+    pub fn convolve(mut self, other : &Self) -> Self {
+        Signal { data: math::convolve(&mut self.data, &other.data) }
+    }
+
     /// Performs DFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn forward_dft(&self) -> Self {
         Signal { data: math::dft(&self.data) }
@@ -28,7 +33,10 @@ impl Signal {
     /// Performs Radix-2 FFT, producing a frequency domain `Signal`; consumes and returns `self`. Fails if length is not a power of 2.
     pub fn radix_2_fft(mut self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: math::r2fft(&mut self.data).to_vec() }),
+            true => {
+                math::r2fft(&mut self.data);
+                Ok(self)
+            },
             false => Err(())
         }
     }
@@ -36,7 +44,11 @@ impl Signal {
     /// Performs Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
     pub fn radix_2_fft_new(&self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: math::r2fft(&mut self.data.clone()).to_vec() }),
+            true => {
+                let mut data_new = self.data.clone();
+                math::r2fft(&mut data_new);
+                Ok(Signal { data: data_new })
+            },
             false => Err(())
         }
     }
@@ -49,7 +61,10 @@ impl Signal {
     /// Performs Inverse Radix-2 FFT; consumes and returns `self`. Fails if length is not a power of 2.
     pub fn inverse_radix_2_fft(mut self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: math::ir2fft(&mut self.data).to_vec() }),
+            true => {
+                math::ir2fft(&mut self.data);
+                Ok(self)
+            },
             false => Err(())
         }
     }
@@ -57,7 +72,11 @@ impl Signal {
     /// Performs Inverse Radix-2 FFT, producing a frequency domain `Signal`; does not modify/consume `self`. Fails if length is not a power of 2.
     pub fn inverse_radix_2_fft_new(&self) -> Result<Self, ()> {
         match self.len().is_power_of_two() {
-            true => Ok(Signal { data: math::ir2fft(&mut self.data.clone()).to_vec() }),
+            true => {
+                let mut data_new = self.data.clone();
+                math::ir2fft(&mut data_new);
+                Ok(Signal { data: data_new })
+            },
             false => Err(())
         }
     }
@@ -242,7 +261,7 @@ impl<'a> Add<&Signal> for &'a mut Signal {
         if rhs.len() != self.len() {
             eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] + rhs.data[i];
         }
 
@@ -258,7 +277,7 @@ impl Add<&Signal> for Signal {
         if rhs.len() != self.len() {
             eprintln!("Adding signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] + rhs.data[i];
         }
 
@@ -274,7 +293,7 @@ impl<'a> Sub<&Signal> for &'a mut Signal {
         if rhs.len() != self.len() {
             eprintln!("Subtracting signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] - rhs.data[i];
         }
 
@@ -290,7 +309,7 @@ impl Sub<&Signal> for Signal {
         if rhs.len() != self.len() {
             eprintln!("Subtracting signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] - rhs.data[i];
         }
 
@@ -306,7 +325,7 @@ impl<'a> Mul<&Signal> for &'a mut Signal {
         if rhs.len() != self.len() {
             eprintln!("Multiplying signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
         }
 
@@ -322,7 +341,7 @@ impl Mul<&Signal> for Signal {
         if rhs.len() != self.len() {
             eprintln!("Multiplying signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] * rhs.data[i];
         }
 
@@ -338,7 +357,7 @@ impl<'a> Div<&Signal> for &'a mut Signal {
         if rhs.len() != self.len() {
             eprintln!("Dividing signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] / rhs.data[i];
         }
 
@@ -354,7 +373,7 @@ impl Div<&Signal> for Signal {
         if rhs.len() != self.len() {
             eprintln!("Dividing signals of different length ({} and {})", self.len(), rhs.len());
         }
-        for i in 0..usize::max(self.data.len(), rhs.data.len()) {
+        for i in 0..usize::min(self.data.len(), rhs.data.len()) {
             self.data[i] = self.data[i] / rhs.data[i];
         }
 
@@ -396,10 +415,10 @@ impl PartialEq for Signal {
     /// Checks if `self` is roughly equal to `other`, to 3 decimal places.
     fn eq(&self, other: &Self) -> bool {
         self.data.iter().zip(other.data.iter()).all(|(a, b)| {
-            let a_real_approx = round_to_place(a.real(), EQUALITY_ACCURACY);
-            let a_imag_approx = round_to_place(a.imag(), EQUALITY_ACCURACY);
-            let b_real_approx = round_to_place(b.real(), EQUALITY_ACCURACY);
-            let b_imag_approx = round_to_place(b.imag(), EQUALITY_ACCURACY);
+            let a_real_approx = round_to_place(a.real(), equality_accuracy());
+            let a_imag_approx = round_to_place(a.imag(), equality_accuracy());
+            let b_real_approx = round_to_place(b.real(), equality_accuracy());
+            let b_imag_approx = round_to_place(b.imag(), equality_accuracy());
 
             // println!("{a_real_approx} == {b_real_approx}\t&&\t{a_imag_approx} == {b_imag_approx}");
 
