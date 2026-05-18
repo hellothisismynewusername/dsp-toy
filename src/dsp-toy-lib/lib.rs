@@ -7,7 +7,9 @@ pub mod math;
 mod tests {
     use std::ops::Mul;
 
-    use crate::signal::Signal;
+    use easy_complex::Complex64;
+
+use crate::signal::{self, Signal};
 
     #[test]
     fn stft() {
@@ -73,6 +75,25 @@ mod tests {
         println!("cos_dft + &dc_dft {}", &mut signal_dft + &dc_dft);
 
         assert!(combine_dft == signal_dft);
+    }
+
+    #[test]
+    fn sinc_interpolation_with_freq_domain() {
+        let s = Signal::from([0, 1, 0, -1, 0]);
+        let mut s_freq = s.forward_dft();
+
+        // Sinc interpolate to a 10 sample signal by inserting zeroes in the middle of the frequency domain.
+        for _ in 0..s.len() {
+            s_freq.data.insert(s.len() / 2 + 1, Complex64::from(0));
+        }
+        let interpolated = s_freq.inverse_dft() * 2; // scaling factor is 2, so we need to double the amplitude
+
+        println!("signal:\t\t{:#.2}", s);
+        println!("signal_freq:\t{:.2}", s.forward_dft());
+        println!("signal_freq_0s:\t{:.2}", s_freq);
+        println!("interpolate:\t{:#.2}", interpolated);
+
+        assert_eq!(interpolated, Signal::from([0., 0.45, 1., 0.89, 0., -0.89, -1., -0.45, 0., 0.]));
     }
 
     #[test]
