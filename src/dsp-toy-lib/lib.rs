@@ -1,15 +1,13 @@
 pub mod consts;
 pub mod signal;
+pub mod signal_traits;
 pub mod utility;
 pub mod math;
 
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-
-    use easy_complex::Complex64;
-
-use crate::signal::{self, Signal};
+    use crate::signal::{Signal};
 
     #[test]
     fn stft() {
@@ -21,7 +19,7 @@ use crate::signal::{self, Signal};
         let window_size = 16;
         let hop_size = 8;
 
-        let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false).unwrap();
+        let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false);
 
         let a = windows.pop_front().unwrap(); // mainly first part of the signal
         let b = windows.pop_front().unwrap(); // mainly second part of the signal
@@ -78,22 +76,32 @@ use crate::signal::{self, Signal};
     }
 
     #[test]
-    fn sinc_interpolation_with_freq_domain() {
-        let s = Signal::from([0, 1, 0, -1, 0]);
-        let mut s_freq = s.forward_dft();
+    /// Resampling by converting to frequency domain and adding / removing high frequencies.
+    fn resample() {
+        let s = Signal::from([1, 0, -1, 0, 1, 0, -1, 0, 0, 0, 0, 0]);
+        println!("signal_orig\t\t{:+#.2}", s);
+        let s_resampled = s.resample(None, Some(13)).unwrap();
+        println!("resampled\t\t{:+#.2}, resampled to 13 samples", s_resampled);
 
-        // Sinc interpolate to a 10 sample signal by inserting zeroes in the middle of the frequency domain.
-        for _ in 0..s.len() {
-            s_freq.data.insert(s.len() / 2 + 1, Complex64::from(0));
-        }
-        let interpolated = s_freq.inverse_dft() * 2; // scaling factor is 2, so we need to double the amplitude
+        let s2 = Signal::from([2, 1, 0, 1, 2, 1, 0, 1, 1, 1, 1, 1]);
+        println!("signal2_orig\t\t{:+#.2}", s2);
+        let s2_resampled = s2.resample(Some(1.5), None).unwrap();
+        println!("resampled2\t\t{:+#.2}, resampled to 1.5x samples", s2_resampled);
 
-        println!("signal:\t\t{:#.2}", s);
-        println!("signal_freq:\t{:.2}", s.forward_dft());
-        println!("signal_freq_0s:\t{:.2}", s_freq);
-        println!("interpolate:\t{:#.2}", interpolated);
+        let s3 = Signal::from([0, 1, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0]);
+        println!("signal3_orig\t\t{:+#.2}", s3);
+        let s3_resampled = s3.resample(None, Some(7)).unwrap();
+        println!("resampled3\t\t{:+#.2}, resampled to 7 samples", s3_resampled);
 
-        assert_eq!(interpolated, Signal::from([0., 0.45, 1., 0.89, 0., -0.89, -1., -0.45, 0., 0.]));
+        let s4 = Signal::from([1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0]);
+        println!("signal4_orig:\t\t{:+#.2}", s4);
+        let s4_resampled = s4.resample(None, Some(8)).unwrap();
+        println!("resampled4\t\t{:+#.2}, resampled to 8 samples", s4_resampled);
+
+        assert_eq!(s_resampled, Signal::from([1., 0.14, -0.99, -0.32, 0.85, 0.62, -0.82, -0.62, 0.18, -0.11, 0.08, -0.07, 0.07]));
+        assert_eq!(s2_resampled, Signal::from([2., 1.56, 0.45, 0., 0.54, 1.46, 2., 1.55, 0.44, 0., 0.64, 1.18, 1., 0.89, 1.11, 1., 0.82, 1.36]));
+        assert_eq!(s3_resampled, Signal::from([0.42, 0.23, -0.61, 0.78, -0.2, 0.17, -0.21]));
+        assert_eq!(s4_resampled, Signal::from([1., -0.71, 0., 0.71, -1., 0.71, 0., -0.71]));
     }
 
     #[test]
@@ -172,7 +180,7 @@ use crate::signal::{self, Signal};
         let window_size = 20;
         let hop_size = 10;
 
-        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false).unwrap();
+        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false);
 
         let a = windows.pop_front().unwrap();
         let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);

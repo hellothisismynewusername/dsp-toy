@@ -222,3 +222,7 @@ pub fn hann(n : usize, len : usize) -> f64 {
 pub fn hamming(n : usize, len : usize) -> f64 {
     HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos()
 }
+
+pub fn rectangular(_ : usize, _ : usize) -> f64 {
+    1_f64
+}
