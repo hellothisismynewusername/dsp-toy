@@ -130,54 +130,15 @@ impl Signal {
         Signal { data: self[start..end].to_vec() }
     }
 
-    /// Applies the Hann window to the `Signal`, returning the consumed `Signal`.
-    pub fn hann_window(mut self, symmetric : bool) -> Self {
+    /// Applies `window_function`, mutating `self`.
+    pub fn apply_window(mut self, window_function : impl Fn(usize, usize) -> f64, symmetric : bool) -> Self {
         let len = if symmetric {
             self.len() - 1
         } else {
             self.len()
         };
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(math::hann(i, len));
-        }
-        self
-    }
-
-    /// Applies the Hann window to the `Signal`, mutating `self` and returning a reference.
-    pub fn hann_window_mut(&mut self, symmetric : bool) -> &Self {
-        let len = if symmetric {
-            self.len() - 1
-        } else {
-            self.len()
-        };
-        for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(math::hann(i, len));
-        }
-        self
-    }
-
-    /// Applies the Hamming window to the `Signal`, returning the consumed `Signal`.
-    pub fn hamming_window(mut self, symmetric : bool) -> Self {
-        let len = if symmetric {
-            self.len() - 1
-        } else {
-            self.len()
-        };
-        for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(math::hamming(i, len));
-        }
-        self
-    }
-
-    /// Applies the Hamming window to the `Signal`, mutating `self` and returning a reference.
-    pub fn hamming_window_mut(&mut self, symmetric : bool) -> &Self {
-        let len = if symmetric {
-            self.len() - 1
-        } else {
-            self.len()
-        };
-        for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(math::hamming(i, len));
+            *val = *val * Complex64::from(window_function(i, len));
         }
         self
     }
@@ -208,12 +169,24 @@ impl Signal {
         window_size : usize,
         hop_size : usize,
         windows_num : usize,
-        window_function : impl Fn(Self, bool) -> Self, symmetric : bool
+        window_function : impl Fn(usize, usize) -> f64,
+        symmetric : bool
     ) -> VecDeque<Signal> {
         let mut out = VecDeque::new();
         for i in 0..windows_num {
-            out.push_back(window_function(self.crop_new(hop_size * i, hop_size * i + window_size), symmetric));
+            out.push_back(self.crop_new(hop_size * i, hop_size * i + window_size).apply_window(&window_function, symmetric));
         }
+        out
+    }
+
+    /// Produces a `Signal` from (overlapping) window `Signal`s.
+    pub fn reconstruct(chunks : &[Signal], hop_size : usize) -> Self {
+        let mut out = Signal::new();
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            out = out.overlap(chunk, hop_size * i);
+        }
+
         out
     }
 

@@ -7,10 +7,27 @@ pub mod math;
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use crate::signal::{Signal};
+    use crate::{math, signal::Signal};
 
     #[test]
     fn stft() {
+        let signal = Signal::from(
+            [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
+        );
+        let window_size = 8;
+        let hop_size = 4;
+        let windows_num = 5;
+
+        let mut windows = signal.windows(window_size, hop_size, windows_num, math::hann, false);
+        let slices = windows.make_contiguous().iter_mut().into_slice();
+
+        println!("reconstructed:\t{:+#.2}", Signal::reconstruct(slices, hop_size));
+
+        assert_eq!(Signal::reconstruct(slices, hop_size), Signal::from([0., -0.07, 0.25, -0.43, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -0.5, 0.]));
+    }
+
+    #[test]
+    fn stft2() {
         let signal = Signal::from(
             [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
         );
@@ -19,7 +36,7 @@ mod tests {
         let window_size = 16;
         let hop_size = 8;
 
-        let mut windows = signal.windows(window_size, hop_size, 2, Signal::hann_window, false);
+        let mut windows = signal.windows(window_size, hop_size, 2, math::hann, false);
 
         let a = windows.pop_front().unwrap(); // mainly first part of the signal
         let b = windows.pop_front().unwrap(); // mainly second part of the signal
@@ -27,12 +44,12 @@ mod tests {
 
         println!("a_dft:\t\t{:+}\nb_dft:\t\t{:+}", a.radix_2_fft_new().unwrap(), b.radix_2_fft_new().unwrap());
 
-        println!("reconstructed:\t{:+}", a.clone().overlap(&b, hop_size));
+        println!("reconstructed:\t{}", a.clone().overlap(&b, hop_size));
 
         // bins at which fundamental frequencies land in
-        let a_fft_nyquist_bin = a.radix_2_fft_new().unwrap().data[8];
-        let b_fft_bin_4 = b.radix_2_fft_new().unwrap().data[4];
-        let b_fft_bin_12 = b.radix_2_fft_new().unwrap().data[12]; // b bin 4's corresponding negative frequency
+        let a_fft_nyquist_bin = a.radix_2_fft_new().unwrap()[8];
+        let b_fft_bin_4 = b.radix_2_fft_new().unwrap()[4];
+        let b_fft_bin_12 = b.radix_2_fft_new().unwrap()[12]; // b bin 4's corresponding negative frequency
 
         // assert that the magnitude at the nyquist bin (which is the bin that holds the fundamental) in a is the loudest
         assert!(a.data.iter().all(|x| a_fft_nyquist_bin.real() >= x.real()));
@@ -180,7 +197,7 @@ mod tests {
         let window_size = 20;
         let hop_size = 10;
 
-        let mut windows = signal.windows(window_size, hop_size, 3, Signal::hann_window, false);
+        let mut windows = signal.windows(window_size, hop_size, 3, math::hann, false);
 
         let a = windows.pop_front().unwrap();
         let signal_reconstructed = a.overlap(&windows[0], hop_size).overlap(&windows[1], hop_size * 2);

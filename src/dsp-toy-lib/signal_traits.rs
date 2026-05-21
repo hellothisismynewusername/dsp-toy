@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::{Add, Div, Index, IndexMut, Mul, Range, Sub}};
+use std::{fmt::Display, ops::{Add, AddAssign, Div, Index, IndexMut, Mul, Range, Sub}};
 
 use easy_complex::{Complex64};
 use crate::{signal::Signal, utility::equality_accuracy};
@@ -59,6 +59,33 @@ where
     fn from_iter<A: IntoIterator<Item = T>>(iter: A) -> Self {
         let tmp : Vec<Complex64> = iter.into_iter().map(|x| Complex64::from(x)).collect();
         Signal { data: tmp }
+    }
+}
+
+impl IntoIterator for Signal {
+    type Item = Complex64;
+    type IntoIter = std::vec::IntoIter<Complex64>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Signal {
+    type Item = &'a Complex64;
+    type IntoIter = std::slice::Iter<'a, Complex64>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Signal {
+    type Item = &'a mut Complex64;
+    type IntoIter = std::slice::IterMut<'a, Complex64>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter_mut()
     }
 }
 
@@ -217,6 +244,12 @@ where
     fn mul(mut self, rhs: T) -> Self::Output {
         self.data = self.data.iter().map(|x| *x * Complex64::from(rhs)).collect();
         self
+    }
+}
+
+impl AddAssign<&Self> for Signal {
+    fn add_assign(&mut self, rhs: &Self) {
+        _ = self + rhs;
     }
 }
 
