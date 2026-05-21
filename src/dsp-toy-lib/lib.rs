@@ -7,7 +7,26 @@ pub mod math;
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use crate::{math, signal::Signal};
+    use crate::{math, signal::{Signal}};
+
+    #[test]
+    fn iir_eq_filter() {
+        // random noise
+        let signal = Signal::from(
+            [-3.2, 4.7, 1.8, -0.5, -4.1, 3.4, 0.9, -2.8, 2.1, -1.6, 0.3, -4.8, 4.0, 1.2, -3.7, 2.6, -0.1, 3.8, -1.3, 4.5]
+        );
+        let sample_rate = 20;
+
+        let band_1 = (5., 20., 5.);     // tighter boost to 5 Hz frequency.
+        let band_2 = (9.9, -20., 0.5);  // mimic a low pass
+
+        let signal_filtered = signal.iir_filter_peak_bell_real([band_1, band_2].as_slice(), sample_rate);
+
+        println!("signal:\t\t{:+#.2}, sample rate {}", signal, sample_rate);
+        println!("filtered:\t{:+#.2}", signal_filtered);
+
+        assert_eq!(signal_filtered, Signal::from([-3.2, 4.16, 4.41, -3.03, -6.06, 4.38, 6.36, -6.98, -2.02, 2.76, 3.37, -8.04, -0.15, 7.96, -3.19, -3.04, 0.47, 8.1, -1., -2.04]));
+    }
 
     #[test]
     fn stft() {

@@ -1,11 +1,9 @@
 use dsp_toy_lib::signal::Signal;
 
 fn main() {
-    let mut signal = Signal::from(
-        [0, 1, 0, 1]
-    );
-    let a = Signal::from([5, 5, 5, 5]);
-    signal += &a;
-    let _ = a.radix_2_fft();
-    println!("{}", signal);
+    let s1 = Signal::from([1, 2]);
+    let s2 = Signal::from([3, 4]);
+
+    println!("{}", s1.convolve(&s2));
+
 }

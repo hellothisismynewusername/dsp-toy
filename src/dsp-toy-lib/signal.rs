@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, f64::consts::PI};
 
 use easy_complex::{Complex64};
 use crate::math;
@@ -279,5 +279,98 @@ impl Signal {
 
             Ok(out)
         }
+    }
+
+    /// Performs an EQing filter, returning the new filtered signal.
+    /// - `bands.0` (band_frequency): 0 ≤ band_frequency ≤ NYQUIST_FREQ, in Hz
+    /// - `bands.1` (band_gain): in Hz
+    /// - `bands.2` (band_q): 0 < band_q
+    pub fn iir_filter_peak_bell_real(&self, bands : &[(f64, f64, f64)], sample_rate : usize) -> Self {
+        // get poles and zeroes from the bands, and their respective complex conjugates.
+        let mut poles = Vec::with_capacity(bands.len() * 2);
+        let mut zeroes = Vec::with_capacity(bands.len() * 2);
+        for (band_freq, band_gain, band_q) in bands.iter() {
+            let angle = 2. * PI * (*band_freq / sample_rate as f64);
+            let thickness = angle.sin() / (2. * band_q);
+            let amplitude = 10_f64.powf(band_gain / 40.);
+            
+            let pole_radius = f64::sqrt((1. - thickness / amplitude) / (1. + thickness / amplitude));
+            let zero_radius = f64::sqrt((1. - thickness * amplitude) / (1. + thickness * amplitude));
+
+            poles.push(Complex64::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
+            poles.push(Complex64::new(pole_radius * angle.cos(), -1. * pole_radius * angle.sin()));
+            zeroes.push(Complex64::new(zero_radius * angle.cos(), zero_radius * angle.sin()));
+            zeroes.push(Complex64::new(zero_radius * angle.cos(), -1. * zero_radius * angle.sin()));
+        }
+
+        // polynomial expansion with convolution
+        let mut feedforward_coeffs = vec![Complex64::from(1.)];
+        let mut feedback_coeffs = vec![Complex64::from(1.)];
+
+        for zero in zeroes {
+            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * zero];
+            feedforward_coeffs = math::convolve(feedforward_coeffs.as_slice(), &tmp_binomial);
+        }
+        for pole in poles {
+            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * pole];
+            feedback_coeffs = math::convolve(feedback_coeffs.as_slice(), &tmp_binomial);
+        }
+
+        // manual sanity check, ensure there is no imaginary components in both lists
+        // println!("feedforwards\t{:?}", feedforward_coeffs);
+        // println!("feedbacks\t{:?}", feedback_coeffs);
+
+        // remove imaginary components and normalization for both lists
+        //let feedforward_first = feedforward_coeffs[0].real();
+        let feedback_first = feedback_coeffs[0].real();
+        let feedforward_coeffs_norm : Vec<f64> = feedforward_coeffs
+            .iter()
+            .map(|x| x.real())
+            .map(|x| x / feedback_first)
+            .collect();
+        // also, flip signs for after-first entries in feedbacks and remove first entry
+        let feedback_coeffs_norm : Vec<f64> = feedback_coeffs
+            .iter()
+            .map(|x| x.real())
+            .map(|x| -1. * x / feedback_first)
+            .enumerate()
+            .filter(|(i, _)| *i > 0)
+            .map(|(_, x)| x)
+            .collect();
+
+        // filter function
+        // last entry of inps & outs is current inp / out, previous entries are old inp / out
+        let filter = |inps : &[f64], outs : &[f64], b_coeffs : &[f64], a_coeffs : &[f64]| -> f64 {
+            let tmp_b : f64 = b_coeffs.iter().enumerate().map(|(i, val)| val * inps[inps.len() - 1 - i]).sum();
+            let tmp_a : f64 = a_coeffs.iter().enumerate().map(|(i, val)| val * outs[outs.len() - 1 - i]).sum();
+
+            tmp_b + tmp_a
+        };
+
+        // filter application
+        let mut output_signal_data = Vec::new();
+
+        let max_prev_inps = feedforward_coeffs_norm.len();
+        let max_prev_outs = feedback_coeffs_norm.len();
+        let mut inps = VecDeque::from(vec![0.; max_prev_inps]);
+        let mut outs = VecDeque::from(vec![0.; max_prev_outs]);
+        for val in self.data.iter().map(|x| x.real()) {
+            inps.pop_front();
+            inps.push_back(val);
+
+            let out = filter(
+                inps.make_contiguous().iter().as_slice(),
+                outs.make_contiguous().iter().as_slice(),
+                feedforward_coeffs_norm.as_slice(),
+                feedback_coeffs_norm.as_slice()
+            );
+
+            output_signal_data.push(Complex64::from(out));
+
+            outs.pop_front();
+            outs.push_back(out);
+        }
+
+        Signal { data: output_signal_data }
     }
 }
