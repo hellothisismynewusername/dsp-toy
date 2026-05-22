@@ -7,10 +7,12 @@ pub mod math;
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use crate::{math, signal::{Signal}};
+    use crate::{math, signal::Signal, utility::equality_accuracy};
 
     #[test]
     fn iir_eq_filter() {
+        assert_eq!(equality_accuracy(), 2);
+
         // random noise
         let signal = Signal::from(
             [-3.2, 4.7, 1.8, -0.5, -4.1, 3.4, 0.9, -2.8, 2.1, -1.6, 0.3, -4.8, 4.0, 1.2, -3.7, 2.6, -0.1, 3.8, -1.3, 4.5]
@@ -30,6 +32,8 @@ mod tests {
 
     #[test]
     fn stft() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
         );
@@ -47,6 +51,8 @@ mod tests {
 
     #[test]
     fn stft2() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 0.5, -0.5, 1., 0., -1., 0., 1., 0., -1., 0., 1., 0., -1., 0.]
         );
@@ -81,6 +87,8 @@ mod tests {
     #[test]
     /// The convolution operation is the same as element-wise multiplication in the other domain.
     fn convolution_theorem() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from([1, 0, -1, 0]).zero_extend_end(4);
         let ir = Signal::from([0.8, 0.3, -1000., 0.]).zero_extend_end(4);
         let convolved_standard = signal.clone().convolve(&ir);
@@ -95,6 +103,8 @@ mod tests {
     #[test]
     /// A linear combination of signals is the same linear combination of their respective transforms.
     fn linearity() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from([1, 0, -1, 0]);
         let dc = Signal::from([1, 1, 1, 1]);
 
@@ -114,6 +124,8 @@ mod tests {
     #[test]
     /// Resampling by converting to frequency domain and adding / removing high frequencies.
     fn resample() {
+        assert_eq!(equality_accuracy(), 2);
+
         let s = Signal::from([1, 0, -1, 0, 1, 0, -1, 0, 0, 0, 0, 0]);
         println!("signal_orig\t\t{:+#.2}", s);
         let s_resampled = s.resample(None, Some(13)).unwrap();
@@ -142,6 +154,8 @@ mod tests {
 
     #[test]
     fn dft_fft_and_inverses_work() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [0.1, 0., -1., 0., 1.5, -10.3, 0., 0., 0., 15., 1.0, 2.0, 3.0, 4.0, 0.0, 0.0]
         );
@@ -170,6 +184,8 @@ mod tests {
 
     #[test]
     fn differentiation_filter() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [0, 5, 10, 3, 3, 3, 3, -3, -3, 0, 0]
         );
@@ -187,6 +203,8 @@ mod tests {
 
     #[test]
     fn convolve_with_unit_impulse_is_unchanged() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [1, 0, -1, 0]
         );
@@ -208,6 +226,8 @@ mod tests {
 
     #[test]
     fn windowing() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from(
             [10].repeat(40).as_slice()
         );
@@ -227,6 +247,8 @@ mod tests {
 
     #[test]
     fn amplitude_change() {
+        assert_eq!(equality_accuracy(), 2);
+
         let signal = Signal::from([0.1, 0.2, -6., -7.]);
         println!("signal:\t\t\t{}", signal);
         println!("signal amplified:\t{}", signal.clone() * -2.5);

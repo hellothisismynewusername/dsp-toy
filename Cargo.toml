@@ -1,11 +1,6 @@
-[package]
-name = "dsp_toy"
-version = "0.1.0"
-edition = "2024"
-
-[lib]
-name = "dsp_toy_lib"
-path = "src/dsp-toy-lib/lib.rs"
-
-[dependencies]
-easy_complex = "0.4.1"
+[workspace]
+members = [
+    "dsp_toy",
+    "dsp_toy_lib",
+]
+resolver = "2"

@@ -1,0 +1,7 @@
+[package]
+name = "dsp_toy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dsp_toy_lib = { path = "../dsp_toy_lib" }

@@ -6,6 +6,13 @@ version = 4
 name = "dsp_toy"
 version = "0.1.0"
 dependencies = [
+ "dsp_toy_lib",
+]
+
+[[package]]
+name = "dsp_toy_lib"
+version = "0.1.0"
+dependencies = [
  "easy_complex",
 ]
 
