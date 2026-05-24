@@ -9,10 +9,28 @@ pub struct Signal {
 }
 
 impl Signal {
-    pub fn new() -> Signal {
-        Signal {
+    pub fn new() -> Self {
+        Self {
             data: Vec::new(),
         }
+    }
+
+    pub fn from_fn_mut(function : &mut dyn FnMut(usize) -> Complex64, start : usize, end : usize) -> Self {
+        let mut tmp = Vec::new();
+        for i in start..end {
+            tmp.push(function(i));
+        }
+
+        Self { data: tmp }
+    }
+
+    pub fn from_fn(function : &dyn Fn(usize) -> Complex64, start : usize, end : usize) -> Self {
+        let mut tmp = Vec::new();
+        for i in start..end {
+            tmp.push(function(i));
+        }
+
+        Self { data: tmp }
     }
 
     pub fn len(&self) -> usize {
@@ -21,12 +39,12 @@ impl Signal {
 
     /// Convolves with signal `other`, consuming and returning `self`.
     pub fn convolve(mut self, other : &Self) -> Self {
-        Signal { data: math::convolve(&mut self.data, &other.data) }
+        Self { data: math::convolve(&mut self.data, &other.data) }
     }
 
     /// Performs DFT, producing a frequency domain `Signal`; does not modify/consume `self`.
     pub fn forward_dft(&self) -> Self {
-        Signal { data: math::dft(&self.data) }
+        Self { data: math::dft(&self.data) }
     }
 
     /// Performs Radix-2 FFT, producing a frequency domain `Signal`; consumes and returns `self`. Fails if length is not a power of 2.
@@ -46,7 +64,7 @@ impl Signal {
             true => {
                 let mut data_new = self.data.clone();
                 math::r2fft(&mut data_new);
-                Ok(Signal { data: data_new })
+                Ok(Self { data: data_new })
             },
             false => Err("Error: Cannot perform radix_2_fft_new on a signal of length not a power of 2.")
         }
@@ -54,7 +72,7 @@ impl Signal {
 
     /// Performs Inverse DFT, producing a time domain `Signal`; does not modify/consume `self`.
     pub fn inverse_dft(&self) -> Self {
-        Signal { data: math::idft(&self.data) }
+        Self { data: math::idft(&self.data) }
     }
 
     /// Performs Inverse Radix-2 FFT; consumes and returns `self`. Fails if length is not a power of 2.
@@ -74,7 +92,7 @@ impl Signal {
             true => {
                 let mut data_new = self.data.clone();
                 math::ir2fft(&mut data_new);
-                Ok(Signal { data: data_new })
+                Ok(Self { data: data_new })
             },
             false => Err("Error: Cannot perform inverse_radix_2_fft_new on a signal of length not a power of 2.")
         }
@@ -86,7 +104,7 @@ impl Signal {
             data_tmp.push_front(Complex64::from(0));
             data_tmp.push_back(Complex64::from(0));
         }
-        Signal { data: data_tmp.into() }
+        Self { data: data_tmp.into() }
     }
 
     pub fn zero_extend_end(mut self, num : usize) -> Self {
@@ -108,7 +126,7 @@ impl Signal {
         for _ in 0..num {
             data_tmp.push_front(Complex64::from(0));
         }
-        Signal { data: data_tmp.into() }
+        Self { data: data_tmp.into() }
     }
 
     pub fn zero_extend_start_mut(&mut self, num : usize) -> &Self {
@@ -116,6 +134,18 @@ impl Signal {
             self.data.insert(0, Complex64::from(0));
         }
         self
+    }
+
+    pub fn iter_real(&self) -> impl Iterator<Item = f64> {
+        self.data.iter().map(|x| x.real())
+    }
+
+    pub fn iter_imag(&self) -> impl Iterator<Item = f64> {
+        self.data.iter().map(|x| x.imag())
+    }
+
+    pub fn iter_complex(&self) -> impl Iterator<Item = Complex64> {
+        self.data.iter().map(|x| *x)
     }
 
     /// Crops the signal by `start` and `end`, modifying `self` and returning the cropped Signal.
@@ -127,7 +157,7 @@ impl Signal {
 
     /// Produces a new `Signal` with a copy of the original data from `start` to `end`.
     pub fn crop_new(&self, start : usize, end : usize) -> Self {
-        Signal { data: self[start..end].to_vec() }
+        Self { data: self[start..end].to_vec() }
     }
 
     /// Applies `window_function`, mutating `self`.
@@ -294,8 +324,8 @@ impl Signal {
             let thickness = angle.sin() / (2. * band_q);
             let amplitude = 10_f64.powf(band_gain / 40.);
             
-            let pole_radius = f64::sqrt((1. - thickness / amplitude) / (1. + thickness / amplitude));
-            let zero_radius = f64::sqrt((1. - thickness * amplitude) / (1. + thickness * amplitude));
+            let pole_radius = f64::sqrt((1. - thickness / amplitude).clamp(0., f64::MAX) / (1. + thickness / amplitude));
+            let zero_radius = f64::sqrt((1. - thickness * amplitude).clamp(0., f64::MAX) / (1. + thickness * amplitude));
 
             poles.push(Complex64::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
             poles.push(Complex64::new(pole_radius * angle.cos(), -1. * pole_radius * angle.sin()));
@@ -371,7 +401,7 @@ impl Signal {
             outs.push_back(out);
         }
 
-        Signal { data: output_signal_data }
+        Self { data: output_signal_data }
     }
 
     /// Performs an EQing filter, returning the new filtered signal, use real version for audio signals.
@@ -379,7 +409,7 @@ impl Signal {
     /// - `bands.1` (band_gain): in Hz
     /// - `bands.2` (band_q): 0 < band_q
     pub fn iir_filter_peak_bell_imag(&self, bands : &[(f64, f64, f64)], sample_rate : usize) -> Self {
-        // get poles and zeroes from the bands, and their respective complex conjugates.
+        // get poles and zeroes from the bands
         let mut poles = Vec::with_capacity(bands.len() * 2);
         let mut zeroes = Vec::with_capacity(bands.len() * 2);
         for (band_freq, band_gain, band_q) in bands.iter() {
@@ -466,6 +496,6 @@ impl Signal {
             outs.push_back(out);
         }
 
-        Signal { data: output_signal_data }
+        Self { data: output_signal_data }
     }
 }

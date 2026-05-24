@@ -1,13 +1,13 @@
 pub mod consts;
 pub mod signal;
-pub mod signal_traits;
 pub mod utility;
 pub mod math;
+pub mod live_signal_processer;
 
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use crate::{math, signal::Signal, utility::equality_accuracy};
+    use crate::{math, signal::signal::{self, Signal}, utility::equality_accuracy};
 
     #[test]
     fn iir_eq_filter() {
