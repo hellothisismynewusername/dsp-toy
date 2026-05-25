@@ -9,13 +9,14 @@ pub trait LiveSignalProcessor<T> {
     fn process_sample(&mut self, inp : T) -> T;
 }
 
-/// Peak-bell IIR filter.
+/// Stateful Peak-bell IIR filter.
 /// Use `FilterIIRPeakBell<f64>` for audio, otherwise you can use `FilterIIRPeakBell<Complex64>`
 pub struct FilterIIRPeakBell<T> {
     inps : VecDeque<T>,
     outs : VecDeque<T>,
-    pub b_coeffs : Vec<T>,
-    pub a_coeffs : Vec<T>
+    b_coeffs : Vec<T>,
+    a_coeffs : Vec<T>,
+    filter : fn(&[T], &[T], &[T], &[T]) -> T
 }
 
 impl FilterIIRPeakBell<Complex64> {
@@ -66,13 +67,30 @@ impl FilterIIRPeakBell<Complex64> {
             .map(|(_, x)| x)
             .collect();
 
+        let filter  = |inps : &[Complex64], outs : &[Complex64], b_coeffs : &[Complex64], a_coeffs : &[Complex64]| -> Complex64 {
+            let tmp_b : Complex64 = b_coeffs
+                .iter()
+                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
+                .reduce(|sum, x| sum + x)
+                .unwrap();
+            let tmp_a : Complex64 = a_coeffs
+                .iter()
+                .enumerate()
+                .map(|(i, val)| *val * outs[outs.len() - 1 - i])
+                .reduce(|sum, x| sum + x)
+                .unwrap();
+
+            tmp_b + tmp_a
+        };
+
         let max_prev_inps = feedforward_coeffs_norm.len();
         let max_prev_outs = feedback_coeffs_norm.len();
         Self {
             inps: VecDeque::from(vec![Complex64::from(0.); max_prev_inps]),
             outs: VecDeque::from(vec![Complex64::from(0.); max_prev_outs]),
             b_coeffs: feedforward_coeffs_norm,
-            a_coeffs: feedback_coeffs_norm
+            a_coeffs: feedback_coeffs_norm,
+            filter: filter
         }
     }
 }
@@ -132,13 +150,30 @@ impl FilterIIRPeakBell<f64> {
             .map(|(_, x)| x)
             .collect();
 
+        // filter function
+        // last entry of inps & outs is current inp / out, previous entries are old inp / out
+        let filter = |inps : &[f64], outs : &[f64], b_coeffs : &[f64], a_coeffs : &[f64]| -> f64 {
+            let tmp_b : f64 = b_coeffs
+                .iter()
+                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
+                .sum();
+            let tmp_a : f64 = a_coeffs
+                .iter()
+                .enumerate()
+                .map(|(i, val)| *val * outs[outs.len() - 1 - i])
+                .sum();
+
+            tmp_b + tmp_a
+        };
+
         let max_prev_inps = feedforward_coeffs_norm.len();
         let max_prev_outs = feedback_coeffs_norm.len();
         Self {
             inps: VecDeque::from(vec![0.; max_prev_inps]),
             outs: VecDeque::from(vec![0.; max_prev_outs]),
             b_coeffs: feedforward_coeffs_norm,
-            a_coeffs: feedback_coeffs_norm
+            a_coeffs: feedback_coeffs_norm,
+            filter: filter
         }
     }
 }
@@ -147,29 +182,15 @@ impl<T> LiveSignalProcessor<T> for FilterIIRPeakBell<T>
 where 
     T: Add<Output = T> + Mul<Output = T> + PartialEq + Copy
 {
+    /// Performs an EQing filter given the next sample, returning the affected sample.
+    /// - `bands.0` (band_frequency): 0 ≤ band_frequency ≤ NYQUIST_FREQ, in Hz
+    /// - `bands.1` (band_gain): in Hz
+    /// - `bands.2` (band_q): 0 < band_q
     fn process_sample(&mut self, val : T) -> T {
         self.inps.pop_front();
         self.inps.push_back(val);
 
-        // filter function
-        // last entry of inps & outs is current inp / out, previous entries are old inp / out
-        let filter = |inps : &[T], outs : &[T], b_coeffs : &[T], a_coeffs : &[T]| -> T {
-            let tmp_b : T = b_coeffs
-                .iter()
-                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
-                .reduce(|sum, x| sum + x)
-                .unwrap();
-            let tmp_a : T = a_coeffs
-                .iter()
-                .enumerate()
-                .map(|(i, val)| *val * outs[outs.len() - 1 - i])
-                .reduce(|sum, x| sum + x)
-                .unwrap();
-
-            tmp_b + tmp_a
-        };
-
-        let out = filter(
+        let out = (self.filter)(
             self.inps.make_contiguous().iter().as_slice(),
             self.outs.make_contiguous().iter().as_slice(),
             self.b_coeffs.as_slice(),
