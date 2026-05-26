@@ -32,4 +32,6 @@ C ABI compatible structs and functions are found in `dsp_toy_lib/src/cdylib_stuf
 
 To use the library as a cdylib, build the library with `cargo build -p dsp_toy_lib --release` and make headers with `cbindgen`.
 
+--- 
+
 For demos of what you can do with this library, see tests in `dsp_toy_lib/src/lib.rs`, foreign examples in `examples`, and code in the `dsp_toy` binary.
