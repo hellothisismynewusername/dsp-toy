@@ -3,6 +3,7 @@ pub mod signal;
 pub mod utility;
 pub mod math;
 pub mod live_signal_processer;
+pub mod cdylib_stuff;
 
 #[cfg(test)]
 mod tests {

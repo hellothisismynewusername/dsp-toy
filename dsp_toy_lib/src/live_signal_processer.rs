@@ -11,6 +11,7 @@ pub trait LiveSignalProcessor<T> {
 
 /// Stateful Peak-bell IIR filter.
 /// Use `FilterIIRPeakBell<f64>` for audio, otherwise you can use `FilterIIRPeakBell<Complex64>`
+#[repr(C)]
 pub struct FilterIIRPeakBell<T> {
     inps : VecDeque<T>,
     outs : VecDeque<T>,

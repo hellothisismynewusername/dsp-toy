@@ -1,0 +1,5 @@
+language = "C"
+cpp_compat = false       # turn off C++ preprocessor wraps
+no_includes = true       # block default standard library layouts
+
+sys_includes = ["stdint.h", "stdbool.h"]
