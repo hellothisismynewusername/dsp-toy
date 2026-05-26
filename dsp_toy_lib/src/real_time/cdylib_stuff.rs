@@ -1,6 +1,6 @@
 use std::ptr::{null_mut};
 
-use crate::live_signal_processer::{FilterIIRPeakBell, LiveSignalProcessor};
+use crate::real_time::{filters::filter_iir_peak_bell::FilterIIRPeakBell, real_time_signal_processer::RealTimeSignalProcessor};
 
 impl From<&Tuple3F64> for (f64, f64, f64) {
     fn from(value: &Tuple3F64) -> Self {

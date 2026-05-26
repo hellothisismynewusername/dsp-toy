@@ -1,4 +1,4 @@
-use dsp_toy_lib::{live_signal_processer::{FilterIIRPeakBell, LiveSignalProcessor}, signal::signal::{self, Signal}};
+use dsp_toy_lib::{real_time::{filters::filter_iir_peak_bell::FilterIIRPeakBell, real_time_signal_processer::RealTimeSignalProcessor}, signal::signal::Signal};
 use easy_complex::Complex64;
 use hound::{WavSpec, WavWriter};
 use rand::RngExt;

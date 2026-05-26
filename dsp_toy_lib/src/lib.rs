@@ -2,8 +2,7 @@ pub mod consts;
 pub mod signal;
 pub mod utility;
 pub mod math;
-pub mod live_signal_processer;
-pub mod cdylib_stuff;
+pub mod real_time;
 
 #[cfg(test)]
 mod tests {

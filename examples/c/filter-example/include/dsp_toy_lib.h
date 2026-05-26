@@ -13,6 +13,9 @@ typedef struct Tuple3F64 {
   double c;
 } Tuple3F64;
 
+/**
+ * Instantiate a `FilterIIRPeakBell<f64>` with bands' frequency defined by Tuple3F64 a, gain Tuple3F64 b, and Q factor Tuple3F64 c.
+ */
 struct FilterIIRPeakBell_f64 *new_FilterIIRPeakBellF64(const struct Tuple3F64 *bands_ptr,
                                                        uintptr_t bands_count,
                                                        uintptr_t sample_rate);

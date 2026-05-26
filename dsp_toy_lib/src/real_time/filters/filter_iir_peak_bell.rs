@@ -2,22 +2,15 @@ use std::{collections::VecDeque, f64::consts::PI, ops::{Add, Mul}};
 
 use easy_complex::Complex64;
 
-use crate::math;
-
-/// Trait for live-signal processing, in a callback setting in which samples are individually pulled.
-pub trait LiveSignalProcessor<T> {
-    fn process_sample(&mut self, inp : T) -> T;
-}
+use crate::{math, real_time::real_time_signal_processer::RealTimeSignalProcessor};
 
 /// Stateful Peak-bell IIR filter.
 /// Use `FilterIIRPeakBell<f64>` for audio, otherwise you can use `FilterIIRPeakBell<Complex64>`
-#[repr(C)]
 pub struct FilterIIRPeakBell<T> {
     inps : VecDeque<T>,
     outs : VecDeque<T>,
     b_coeffs : Vec<T>,
-    a_coeffs : Vec<T>,
-    filter : fn(&[T], &[T], &[T], &[T]) -> T
+    a_coeffs : Vec<T>
 }
 
 impl FilterIIRPeakBell<Complex64> {
@@ -68,30 +61,13 @@ impl FilterIIRPeakBell<Complex64> {
             .map(|(_, x)| x)
             .collect();
 
-        let filter  = |inps : &[Complex64], outs : &[Complex64], b_coeffs : &[Complex64], a_coeffs : &[Complex64]| -> Complex64 {
-            let tmp_b : Complex64 = b_coeffs
-                .iter()
-                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
-                .reduce(|sum, x| sum + x)
-                .unwrap();
-            let tmp_a : Complex64 = a_coeffs
-                .iter()
-                .enumerate()
-                .map(|(i, val)| *val * outs[outs.len() - 1 - i])
-                .reduce(|sum, x| sum + x)
-                .unwrap();
-
-            tmp_b + tmp_a
-        };
-
         let max_prev_inps = feedforward_coeffs_norm.len();
         let max_prev_outs = feedback_coeffs_norm.len();
         Self {
             inps: VecDeque::from(vec![Complex64::from(0.); max_prev_inps]),
             outs: VecDeque::from(vec![Complex64::from(0.); max_prev_outs]),
             b_coeffs: feedforward_coeffs_norm,
-            a_coeffs: feedback_coeffs_norm,
-            filter: filter
+            a_coeffs: feedback_coeffs_norm
         }
     }
 }
@@ -151,35 +127,18 @@ impl FilterIIRPeakBell<f64> {
             .map(|(_, x)| x)
             .collect();
 
-        // filter function
-        // last entry of inps & outs is current inp / out, previous entries are old inp / out
-        let filter = |inps : &[f64], outs : &[f64], b_coeffs : &[f64], a_coeffs : &[f64]| -> f64 {
-            let tmp_b : f64 = b_coeffs
-                .iter()
-                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
-                .sum();
-            let tmp_a : f64 = a_coeffs
-                .iter()
-                .enumerate()
-                .map(|(i, val)| *val * outs[outs.len() - 1 - i])
-                .sum();
-
-            tmp_b + tmp_a
-        };
-
         let max_prev_inps = feedforward_coeffs_norm.len();
         let max_prev_outs = feedback_coeffs_norm.len();
         Self {
             inps: VecDeque::from(vec![0.; max_prev_inps]),
             outs: VecDeque::from(vec![0.; max_prev_outs]),
             b_coeffs: feedforward_coeffs_norm,
-            a_coeffs: feedback_coeffs_norm,
-            filter: filter
+            a_coeffs: feedback_coeffs_norm
         }
     }
 }
 
-impl<T> LiveSignalProcessor<T> for FilterIIRPeakBell<T>
+impl<T> RealTimeSignalProcessor<T> for FilterIIRPeakBell<T>
 where 
     T: Add<Output = T> + Mul<Output = T> + PartialEq + Copy
 {
@@ -191,12 +150,22 @@ where
         self.inps.pop_front();
         self.inps.push_back(val);
 
-        let out = (self.filter)(
-            self.inps.make_contiguous().iter().as_slice(),
-            self.outs.make_contiguous().iter().as_slice(),
-            self.b_coeffs.as_slice(),
-            self.a_coeffs.as_slice()
-        );
+        let inps = self.inps.make_contiguous().iter().as_slice();
+        let outs = self.outs.make_contiguous().iter().as_slice();
+
+        let tmp_b : T = self.b_coeffs
+                .iter()
+                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
+                .reduce(|sum, x| sum + x)
+                .unwrap();
+        let tmp_a : T = self.a_coeffs
+            .iter()
+            .enumerate()
+            .map(|(i, val)| *val * outs[outs.len() - 1 - i])
+            .reduce(|sum, x| sum + x)
+            .unwrap();
+
+        let out = tmp_b + tmp_a;
 
         self.outs.pop_front();
         self.outs.push_back(out);
