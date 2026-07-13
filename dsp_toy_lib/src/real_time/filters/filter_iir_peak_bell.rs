@@ -138,7 +138,7 @@ impl FilterIIRPeakBell<f64> {
     }
 }
 
-impl<T> RealTimeSignalProcessor<T> for FilterIIRPeakBell<T>
+impl<T> RealTimeSignalProcessor<T, T> for FilterIIRPeakBell<T>
 where 
     T: Add<Output = T> + Mul<Output = T> + PartialEq + Copy
 {
