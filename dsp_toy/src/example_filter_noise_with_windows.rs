@@ -1,4 +1,4 @@
-use dsp_toy_lib::{math, signal::signal::{self, Signal}};
+use dsp_toy_lib::{math, signal::signal::{Signal}};
 use easy_complex::Complex64;
 use hound::{WavSpec, WavWriter};
 use rand::RngExt;

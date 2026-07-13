@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 
 use easy_complex::Complex64;
 
-use crate::{consts::{EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA}, utility::j};
+use crate::{consts::{BLACKMAN_WINDOW_C_0, BLACKMAN_WINDOWS_C_1, BLACKMAN_WINDOWS_C_2, EULER, HAMMING_WINDOW_C_0, HAMMING_WINDOW_C_1}, utility::j};
 
 /// Compute convolution without transforming signals to frequency domain, producing the convolved output. Generally less performant than FFT with multiplication.
 pub fn convolve(data : &[Complex64], ir : &[Complex64]) -> Vec<Complex64> {
@@ -220,9 +220,13 @@ pub fn hann(n : usize, len : usize) -> f64 {
 }
 
 pub fn hamming(n : usize, len : usize) -> f64 {
-    HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos()
+    HAMMING_WINDOW_C_0 - HAMMING_WINDOW_C_1 * ((2. * PI * n as f64) / len as f64).cos()
 }
 
 pub fn rectangular(_ : usize, _ : usize) -> f64 {
     1_f64
+}
+
+pub fn blackman(n : usize, len : usize) -> f64 {
+    BLACKMAN_WINDOW_C_0 - BLACKMAN_WINDOWS_C_1 * ((2. * PI * n as f64) / len as f64).cos() + BLACKMAN_WINDOWS_C_2 * ((4. * PI * n as f64) / len as f64).cos()
 }

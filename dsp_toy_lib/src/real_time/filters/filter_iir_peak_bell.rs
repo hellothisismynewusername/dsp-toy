@@ -154,10 +154,10 @@ where
         let outs = self.outs.make_contiguous().iter().as_slice();
 
         let tmp_b : T = self.b_coeffs
-                .iter()
-                .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
-                .reduce(|sum, x| sum + x)
-                .unwrap();
+            .iter()
+            .enumerate().map(|(i, val)| *val * inps[inps.len() - 1 - i])
+            .reduce(|sum, x| sum + x)
+            .unwrap();
         let tmp_a : T = self.a_coeffs
             .iter()
             .enumerate()

@@ -1,7 +1,7 @@
 use std::{fmt::Display, ops::{Add, AddAssign, Div, Index, IndexMut, Mul, Range, Sub}};
 
 use easy_complex::{Complex64};
-use crate::{signal::signal::{self, Signal}, utility::equality_accuracy};
+use crate::{signal::signal::{Signal}, utility::equality_accuracy};
 use crate::utility::{round_to_place};
 
 impl Index<usize> for Signal {
@@ -32,7 +32,7 @@ impl IndexMut<Range<usize>> for Signal {
 
 impl<T> From<&[T]> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
+    T: Add<Output = T> + Sub<Output = T> + Copy + From<i8> + Into<Complex64>,
     Complex64: From<T>
 {
     fn from(data: &[T]) -> Self {

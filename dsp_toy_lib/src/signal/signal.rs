@@ -3,6 +3,7 @@ use std::{collections::VecDeque};
 use easy_complex::{Complex64};
 use crate::{math, real_time::{filters::filter_iir_peak_bell::FilterIIRPeakBell, real_time_signal_processer::RealTimeSignalProcessor}};
 
+/// A struct for non-real-time signal processing.
 #[derive(Debug, Clone)]
 pub struct Signal {
     pub data : Vec<Complex64>,
@@ -240,7 +241,10 @@ impl Signal {
             }
 
             let mut freq = if self.len().is_power_of_two() {
-                self.radix_2_fft().expect("Error: resampling unexpected error during fft")
+                match self.radix_2_fft() {
+                    Ok(x) => x,
+                    Err(_) => return Err("Error: resampling unexpected error during fft")
+                }
             } else {
                 self.forward_dft()
             };
