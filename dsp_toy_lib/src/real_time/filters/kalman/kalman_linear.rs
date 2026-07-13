@@ -1,41 +1,43 @@
 use std::usize;
 
-use nalgebra::{Complex, SMatrix};
+use nalgebra::{Complex, RealField, SMatrix};
 
 use crate::real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::RealTimeSignalProcessor};
 
 /// T should be Complex<f64> or f64
 pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
-    state_dim : usize,
-    measure_dim : usize,
-    control_dim : usize,
-    state_vector : SMatrix<T, STATE_DIM, 1>,
-    estimate_covariance : SMatrix<T, STATE_DIM, STATE_DIM>,
-    state_transition : SMatrix<T, STATE_DIM, STATE_DIM>,
-    control : SMatrix<T, STATE_DIM, CONTROL_DIM>,
-    process_noise_covariance : Option<SMatrix<T, STATE_DIM, STATE_DIM>>,
-    observation : SMatrix<T, MEASURE_DIM, STATE_DIM>,
-    measure_covariance : SMatrix<T, MEASURE_DIM, MEASURE_DIM>
+    pub state_vector : SMatrix<T, STATE_DIM, 1>,
+    pub estimate_covariance : SMatrix<T, STATE_DIM, STATE_DIM>,
+    pub state_transition : SMatrix<T, STATE_DIM, STATE_DIM>,
+    pub control : Option<SMatrix<T, STATE_DIM, CONTROL_DIM>>,
+    pub process_noise_covariance : Option<SMatrix<T, STATE_DIM, STATE_DIM>>,
+    pub observation : SMatrix<T, MEASURE_DIM, STATE_DIM>,
+    pub measure_covariance : SMatrix<T, MEASURE_DIM, MEASURE_DIM>
 }
 
-impl<const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinear<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
-    pub fn init(&mut self, control_vector : Option<SMatrix<f64, CONTROL_DIM, 1>>) {
+impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+where 
+    T: RealField + Copy + Clone
+{
+    pub fn init(&mut self, control_vector : Option<SMatrix<T, CONTROL_DIM, 1>>) {
         let (state, estimate_covariance) = self.predict(control_vector);
-        self.state_dim = STATE_DIM;
-        self.measure_dim = MEASURE_DIM;
-        self.control_dim = CONTROL_DIM;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`
-    fn predict(&mut self, control_vector : Option<SMatrix<f64, CONTROL_DIM, 1>>) -> (SMatrix<f64, STATE_DIM, 1>, SMatrix<f64, STATE_DIM, STATE_DIM>) {
-        let extrapolate_state: SMatrix<f64, STATE_DIM, 1> = if let Some(control_vector_u) = control_vector {
-            self.state_transition * self.state_vector + self.control * control_vector_u
+    fn predict(&mut self, control_vector : Option<SMatrix<T, CONTROL_DIM, 1>>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
+        // only bother adding control_matrix * control_vector if both are Some.
+        let extrapolate_state: SMatrix<T, STATE_DIM, 1> = if let Some(control_vector_u) = control_vector {
+            if let Some(control_matrix) = self.control {
+                self.state_transition * self.state_vector + control_matrix * control_vector_u
+            } else {
+                self.state_transition * self.state_vector
+            }
         }  else {
             self.state_transition * self.state_vector
         };
-        let extrapolate_estimate_covariance: SMatrix<f64, STATE_DIM, STATE_DIM> = if let Some(process_noise_covariance) = self.process_noise_covariance {
+        let extrapolate_estimate_covariance: SMatrix<T, STATE_DIM, STATE_DIM> = if let Some(process_noise_covariance) = self.process_noise_covariance {
             self.state_transition * self.estimate_covariance * self.state_transition.transpose() + process_noise_covariance
         } else {
             self.state_transition * self.estimate_covariance * self.state_transition.transpose()
@@ -43,14 +45,17 @@ impl<const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usi
 
         (extrapolate_state, extrapolate_estimate_covariance)
     }
-}
+}                                                                                     
 
-impl<const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
-    RealTimeSignalProcessor<KalmanInput<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<f64, STATE_DIM, 1>>
+impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
+    RealTimeSignalProcessor<KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
     for
-    FilterKalmanLinear<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+    FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+where 
+    T: RealField + Copy + Clone
+{
 
-    fn process_sample(&mut self, inp : KalmanInput<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<f64, STATE_DIM, 1> {
+    fn process_sample(&mut self, inp : KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
         
         // Prediction
 
@@ -70,8 +75,11 @@ impl<const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usi
         let updated_state = self.state_vector + kalman_gain * (inp.measurement_vector - self.observation * self.state_vector);
         self.state_vector = updated_state;
         
+        // Simplified Covariance Update Equation
+        // Identity matrix - ... can lead to asymm. matrices so copy upper half to lower half instead.
+        // workaround isn't super accurate...
         let tmp_upper = (kalman_gain * self.observation).upper_triangle();
-        let mut i_minus_tmp_symm = (SMatrix::identity() - tmp_upper);
+        let mut i_minus_tmp_symm = SMatrix::identity() - tmp_upper;
         i_minus_tmp_symm.fill_lower_triangle_with_upper_triangle();
         let updated_estimate_covariance = i_minus_tmp_symm * self.estimate_covariance;
         self.estimate_covariance = updated_estimate_covariance;

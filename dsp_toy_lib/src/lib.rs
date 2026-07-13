@@ -8,9 +8,46 @@ pub mod cdylib;
 #[cfg(test)]
 mod tests {
     use std::ops::Mul;
-    use nalgebra::ComplexField;
+    use nalgebra::{ComplexField, SMatrix};
 
-use crate::{math, signal::signal::{Signal}, utility::equality_accuracy};
+    use crate::{math, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear}, real_time_signal_processer::RealTimeSignalProcessor}, signal::signal::Signal, utility::{equality_accuracy, round_to_place}};
+
+    #[test]
+    fn kalman_linear_simple_1d_test() {
+        let print_values = false;
+
+        let mut filter = FilterKalmanLinear::<f64, 1, 1, 0> {
+            control: None,
+            state_vector: SMatrix::<f64, 1, 1>::new(1.),
+            estimate_covariance: SMatrix::<f64, 1, 1>::new(10000.), // error = 100
+            measure_covariance: SMatrix::<f64, 1, 1,>::new(0.01), // measurement error = 0.1
+            state_transition: SMatrix::<f64, 1, 1>::new(1.), // modelling a constant value
+            process_noise_covariance: Some(SMatrix::<f64, 1, 1>::new(0.0001)),
+            observation: SMatrix::<f64, 1, 1>::new(1.)
+        };
+        filter.init(None);
+
+        let mut final_val = -1.;
+
+        let true_values = [50.005, 49.994, 49.993, 50.001, 50.006, 49.998, 50.021, 50.005, 50., 49.997];
+        let measurements = [49.986, 49.963, 50.09, 50.001, 50.018, 50.05, 49.938, 49.858, 49.965, 50.114];
+        for i in 0..10 {
+            let inp = KalmanInput {
+                measurement_vector: SMatrix::<f64, 1, 1>::new(measurements[i]),
+                control_vector: None,
+                process_noise_covariance: None
+            };
+            let tmp = filter.process_sample(inp);
+            if i == 9 {
+                final_val = tmp[0];
+            }
+            if print_values {
+                println!("true:\t{}\nmeas:\t{}\nkalm:\t{}", true_values[i], measurements[i], tmp[0]);
+            }
+        }
+
+        assert_eq!(49.998, round_to_place(final_val, 3));
+    }
 
     #[test]
     fn iir_eq_filter() {
@@ -321,7 +358,7 @@ mod cdylib_tests {
 
         let reconstructed = reconstruct_Signal(windows, windows_count, hop_size);
 
-        let mut out = vec![1.; input.len()];
+        let out = vec![1.; input.len()];
         assert_f64_slice_roughly_eq(&out, &input);
 
         free_Signal(signal);
