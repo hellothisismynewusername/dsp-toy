@@ -1,4 +1,4 @@
-use easy_complex::Complex64;
+use nalgebra::Complex;
 
 use crate::consts::EQUALITY_ACCURACY;
 
@@ -7,8 +7,8 @@ pub fn round_to_place(num : f64, place : usize) -> f64 {
     (num * factor).round() / factor
 }
 
-pub fn j() -> Complex64 {
-    Complex64::new(0., 1.)
+pub fn j() -> Complex<f64> {
+    Complex::<f64>::new(0., 1.)
 }
 
 pub fn equality_accuracy() -> usize {

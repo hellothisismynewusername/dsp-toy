@@ -6,5 +6,5 @@ edition = "2024"
 [dependencies]
 dsp_toy_lib = { path = "../dsp_toy_lib" }
 hound = "3.5.1"
+num-complex = "0.4.6"
 rand = "0.10.1"
-easy_complex = "0.4.1"

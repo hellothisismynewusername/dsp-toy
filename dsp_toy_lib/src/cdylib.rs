@@ -2,7 +2,7 @@
 
 use std::slice;
 
-use easy_complex::Complex64;
+use nalgebra::{Complex, ComplexField};
 
 use crate::math;
 
@@ -25,8 +25,8 @@ pub extern "C" fn convolve_real(a : *mut f64, a_len : usize, b : *const f64, b_l
         };
         let a_input = slice::from_raw_parts(a, a_len);
         let a_out = slice::from_raw_parts_mut(a, out_len);
-        let a_comp : Vec<Complex64> = a_input.iter().map(|x| Complex64::from(*x)).collect();
-        let b_comp : Vec<Complex64> = slice::from_raw_parts(b, b_len).iter().map(|x| Complex64::from(*x)).collect();
+        let a_comp : Vec<Complex<f64>> = a_input.iter().map(|x| Complex::<f64>::from(*x)).collect();
+        let b_comp : Vec<Complex<f64>> = slice::from_raw_parts(b, b_len).iter().map(|x| Complex::<f64>::from(*x)).collect();
 
         let convolved = math::convolve(&a_comp, &b_comp);
         for (i, val) in convolved.iter().map(|x| x.real()).enumerate() {
@@ -56,21 +56,21 @@ pub extern "C" fn convolve_complex(a_real : *mut f64, a_imag : *mut f64, a_len :
         let a_imag_input = slice::from_raw_parts(a_imag, a_len);
         let a_real_out = slice::from_raw_parts_mut(a_real, out_len);
         let a_imag_out = slice::from_raw_parts_mut(a_imag, out_len);
-        let a_comp : Vec<Complex64> = a_real_input
+        let a_comp : Vec<Complex<f64>> = a_real_input
             .iter()
             .zip(a_imag_input.iter())
-            .map(|(real, imag)| Complex64::new(*real, *imag))
+            .map(|(real, imag)| Complex::<f64>::new(*real, *imag))
             .collect();
         let b_real_input = slice::from_raw_parts(b_real, b_len);
         let b_imag_input = slice::from_raw_parts(b_imag, b_len);
-        let b_comp : Vec<Complex64> = b_real_input
+        let b_comp : Vec<Complex<f64>> = b_real_input
             .iter()
             .zip(b_imag_input.iter())
-            .map(|(real, imag)| Complex64::new(*real, *imag))
+            .map(|(real, imag)| Complex::<f64>::new(*real, *imag))
             .collect();
 
         let convolved = math::convolve(&a_comp, &b_comp);
-        for (i, (real, imag)) in convolved.iter().map(|x| (x.real(), x.imag())).enumerate() {
+        for (i, (real, imag)) in convolved.iter().map(|x| (x.real(), x.imaginary())).enumerate() {
             a_real_out[i] = real;
             a_imag_out[i] = imag;
         }
@@ -92,17 +92,17 @@ pub extern "C" fn dft(real : *mut f64, imag : *mut f64, len : usize) -> bool {
     unsafe {
         let real_slice = slice::from_raw_parts_mut(real, len);
         let imag_slice = slice::from_raw_parts_mut(imag, len);
-        let data_comp : Vec<Complex64> = real_slice
+        let data_comp : Vec<Complex<f64>> = real_slice
             .iter()
             .zip(imag_slice.iter())
-            .map(|(r, i)| Complex64::new(*r, *i))
+            .map(|(r, i)| Complex::<f64>::new(*r, *i))
             .collect();
 
         let dft = math::dft(&data_comp);
 
         for (i, val) in dft.iter().enumerate() {
             real_slice[i] = val.real();
-            imag_slice[i] = val.imag();
+            imag_slice[i] = val.imaginary();
         }
 
         return true;
@@ -122,17 +122,17 @@ pub extern "C" fn idft(real : *mut f64, imag : *mut f64, len : usize) -> bool {
     unsafe {
         let real_slice = slice::from_raw_parts_mut(real, len);
         let imag_slice = slice::from_raw_parts_mut(imag, len);
-        let data_comp : Vec<Complex64> = real_slice
+        let data_comp : Vec<Complex<f64>> = real_slice
             .iter()
             .zip(imag_slice.iter())
-            .map(|(r, i)| Complex64::new(*r, *i))
+            .map(|(r, i)| Complex::<f64>::new(*r, *i))
             .collect();
 
         let idft = math::idft(&data_comp);
 
         for (i, val) in idft.iter().enumerate() {
             real_slice[i] = val.real();
-            imag_slice[i] = val.imag();
+            imag_slice[i] = val.imaginary();
         }
 
         return true;
@@ -152,17 +152,17 @@ pub extern "C" fn r2fft(real : *mut f64, imag : *mut f64, len : usize) -> bool {
     unsafe {
         let real_slice = slice::from_raw_parts_mut(real, len);
         let imag_slice = slice::from_raw_parts_mut(imag, len);
-        let mut data_comp : Vec<Complex64> = real_slice
+        let mut data_comp : Vec<Complex<f64>> = real_slice
             .iter()
             .zip(imag_slice.iter())
-            .map(|(r, i)| Complex64::new(*r, *i))
+            .map(|(r, i)| Complex::<f64>::new(*r, *i))
             .collect();
 
         math::r2fft(&mut data_comp);
 
         for (i, val) in data_comp.iter().enumerate() {
             real_slice[i] = val.real();
-            imag_slice[i] = val.imag();
+            imag_slice[i] = val.imaginary();
         }
 
         return true;
@@ -182,17 +182,17 @@ pub extern "C" fn ir2fft(real : *mut f64, imag : *mut f64, len : usize) -> bool 
     unsafe {
         let real_slice = slice::from_raw_parts_mut(real, len);
         let imag_slice = slice::from_raw_parts_mut(imag, len);
-        let mut data_comp : Vec<Complex64> = real_slice
+        let mut data_comp : Vec<Complex<f64>> = real_slice
             .iter()
             .zip(imag_slice.iter())
-            .map(|(r, i)| Complex64::new(*r, *i))
+            .map(|(r, i)| Complex::<f64>::new(*r, *i))
             .collect();
 
         math::ir2fft(&mut data_comp);
 
         for (i, val) in data_comp.iter().enumerate() {
             real_slice[i] = val.real();
-            imag_slice[i] = val.imag();
+            imag_slice[i] = val.imaginary();
         }
 
         return true;

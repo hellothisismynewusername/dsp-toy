@@ -1,14 +1,14 @@
 use dsp_toy_lib::{real_time::{filters::filter_iir_peak_bell::FilterIIRPeakBell, real_time_signal_processer::RealTimeSignalProcessor}, signal::signal::Signal};
-use easy_complex::Complex64;
 use hound::{WavSpec, WavWriter};
+use num_complex::Complex;
 use rand::RngExt;
 
 mod example_filter_noise_with_windows;
 
 fn main() {
     let mut rng = rand::rng();
-    let mut rand_fn = |_ : usize| -> Complex64 {
-        Complex64::from(rng.random_range::<f64, _>((-0.1)..(0.1)))
+    let mut rand_fn = |_ : usize| -> Complex<f64> {
+        Complex::<f64>::from(rng.random_range::<f64, _>((-0.1)..(0.1)))
     };
 
     let signal = Signal::from_fn_mut(&mut rand_fn, 0, 204800);

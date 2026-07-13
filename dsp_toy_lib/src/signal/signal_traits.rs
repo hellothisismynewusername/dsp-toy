@@ -1,11 +1,12 @@
 use std::{fmt::Display, ops::{Add, AddAssign, Div, Index, IndexMut, Mul, Range, Sub}};
 
-use easy_complex::{Complex64};
+use nalgebra::{Complex, ComplexField};
+
 use crate::{signal::signal::{Signal}, utility::equality_accuracy};
 use crate::utility::{round_to_place};
 
 impl Index<usize> for Signal {
-    type Output = Complex64;
+    type Output = Complex::<f64>;
     fn index(&self, index: usize) -> &Self::Output {
         &self.data[index]
     }
@@ -18,7 +19,7 @@ impl IndexMut<usize> for Signal {
 }
 
 impl Index<Range<usize>> for Signal {
-    type Output = [Complex64];
+    type Output = [Complex::<f64>];
     fn index(&self, index: Range<usize>) -> &Self::Output {
         &self.data[index]
     }
@@ -32,39 +33,39 @@ impl IndexMut<Range<usize>> for Signal {
 
 impl<T> From<&[T]> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + From<i8> + Into<Complex64>,
-    Complex64: From<T>
+    T: Add<Output = T> + Sub<Output = T> + Copy + From<i8> + Into<Complex::<f64>>,
+    Complex::<f64>: From<T>
 {
     fn from(data: &[T]) -> Self {
-        let tmp = data.iter().map(|x| Complex64::from(*x));
+        let tmp = data.iter().map(|x| Complex::<f64>::from(*x));
         Signal { data: Vec::from_iter(tmp) }
     }
 }
 
 impl<T, const N : usize> From<[T; N]> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
-    Complex64: From<T>
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    f64: From<T>
 {
     fn from(value: [T; N]) -> Self {
-        Signal { data: value.iter().map(|x| Complex64::from(*x)).collect() }
+        Signal { data: value.iter().map(|x| Complex::<f64>::from(f64::from(*x))).collect() }
     }
 }
 
 impl<T> FromIterator<T> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
-    Complex64: From<T>
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    Complex::<f64>: From<T>
 {
     fn from_iter<A: IntoIterator<Item = T>>(iter: A) -> Self {
-        let tmp : Vec<Complex64> = iter.into_iter().map(|x| Complex64::from(x)).collect();
+        let tmp : Vec<Complex::<f64>> = iter.into_iter().map(|x| Complex::<f64>::from(x)).collect();
         Signal { data: tmp }
     }
 }
 
 impl IntoIterator for Signal {
-    type Item = Complex64;
-    type IntoIter = std::vec::IntoIter<Complex64>;
+    type Item = Complex::<f64>;
+    type IntoIter = std::vec::IntoIter<Complex::<f64>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.data.into_iter()
@@ -72,8 +73,8 @@ impl IntoIterator for Signal {
 }
 
 impl<'a> IntoIterator for &'a Signal {
-    type Item = &'a Complex64;
-    type IntoIter = std::slice::Iter<'a, Complex64>;
+    type Item = &'a Complex::<f64>;
+    type IntoIter = std::slice::Iter<'a, Complex::<f64>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.data.iter()
@@ -81,8 +82,8 @@ impl<'a> IntoIterator for &'a Signal {
 }
 
 impl<'a> IntoIterator for &'a mut Signal {
-    type Item = &'a mut Complex64;
-    type IntoIter = std::slice::IterMut<'a, Complex64>;
+    type Item = &'a mut Complex::<f64>;
+    type IntoIter = std::slice::IterMut<'a, Complex::<f64>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.data.iter_mut()
@@ -220,14 +221,14 @@ impl Div<&Signal> for Signal {
 // Scalar multiplication
 impl<'a, T> Mul<T> for &'a mut Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
-    Complex64: From<T>
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    Complex::<f64>: From<T>
 {
     type Output = &'a mut Signal;
 
     /// Scalar multiplies entries in `self` by `rhs`, mutating and returning a mutable reference.
     fn mul(self, rhs: T) -> Self::Output {
-        self.data = self.data.iter().map(|x| *x * Complex64::from(rhs)).collect();
+        self.data = self.data.iter().map(|x| *x * Complex::<f64>::from(rhs)).collect();
         self
     }
 }
@@ -235,14 +236,14 @@ where
 // Scalar multiplication
 impl<T> Mul<T> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex64>,
-    Complex64: From<T>
+    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    Complex::<f64>: From<T>
 {
     type Output = Signal;
 
     /// Scalar multiplies entries in `self` by `rhs`, consuming and returning the final `Signal`.
     fn mul(mut self, rhs: T) -> Self::Output {
-        self.data = self.data.iter().map(|x| *x * Complex64::from(rhs)).collect();
+        self.data = self.data.iter().map(|x| *x * Complex::<f64>::from(rhs)).collect();
         self
     }
 }
@@ -258,9 +259,9 @@ impl PartialEq for Signal {
     fn eq(&self, other: &Self) -> bool {
         self.data.iter().zip(other.data.iter()).all(|(a, b)| {
             let a_real_approx = round_to_place(a.real(), equality_accuracy());
-            let a_imag_approx = round_to_place(a.imag(), equality_accuracy());
+            let a_imag_approx = round_to_place(a.imaginary(), equality_accuracy());
             let b_real_approx = round_to_place(b.real(), equality_accuracy());
-            let b_imag_approx = round_to_place(b.imag(), equality_accuracy());
+            let b_imag_approx = round_to_place(b.imaginary(), equality_accuracy());
 
             // println!("{a_real_approx} == {b_real_approx}\t&&\t{a_imag_approx} == {b_imag_approx}");
 
@@ -289,8 +290,8 @@ impl Display for Signal {
             }
 
             if !f.alternate() {
-                let mut mag = f64::sqrt(val.real().powf(2.) + val.imag().powf(2.));
-                let mut phase = f64::atan2(val.imag(), val.real());
+                let mut mag = f64::sqrt(val.real().powf(2.) + val.imaginary().powf(2.));
+                let mut phase = f64::atan2(val.imaginary(), val.real());
 
                 // if the magnitude is basically zero, force the phase to zero
                 if mag < 0.00001 {
@@ -317,8 +318,8 @@ impl Display for Signal {
                     None => round_to_place(val.real(), 3)
                 };
                 let imag = match round_place {
-                    Some(x) => round_to_place(val.imag(), x),
-                    None => round_to_place(val.imag(), 3)
+                    Some(x) => round_to_place(val.imaginary(), x),
+                    None => round_to_place(val.imaginary(), 3)
                 };
                 out += &*(real.to_string());
                 if !f.sign_plus() {

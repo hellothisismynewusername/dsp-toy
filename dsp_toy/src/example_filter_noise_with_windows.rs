@@ -1,12 +1,12 @@
 use dsp_toy_lib::{math, signal::signal::{Signal}};
-use easy_complex::Complex64;
 use hound::{WavSpec, WavWriter};
+use num_complex::Complex;
 use rand::RngExt;
 
 fn do_the_thing() {
     let mut rng = rand::rng();
-    let mut rand_fn = |_ : usize| -> Complex64 {
-        Complex64::from(rng.random_range::<f64, _>((-0.1)..(0.1)))
+    let mut rand_fn = |_ : usize| -> Complex<f64> {
+        Complex::<f64>::from(rng.random_range::<f64, _>((-0.1)..(0.1)))
     };
 
     let signal = Signal::from_fn_mut(&mut rand_fn, 0, 204800);

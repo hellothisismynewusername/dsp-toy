@@ -1,11 +1,11 @@
 use std::{collections::VecDeque, f64::consts::PI, ops::{Add, Mul}};
 
-use easy_complex::Complex64;
+use nalgebra::{Complex, ComplexField};
 
 use crate::{math, real_time::real_time_signal_processer::RealTimeSignalProcessor};
 
 /// Stateful Peak-bell IIR filter.
-/// Use `FilterIIRPeakBell<f64>` for audio, otherwise you can use `FilterIIRPeakBell<Complex64>`
+/// Use `FilterIIRPeakBell<f64>` for audio, otherwise you can use `FilterIIRPeakBell<Complex<f64>>`
 pub struct FilterIIRPeakBell<T> {
     inps : VecDeque<T>,
     outs : VecDeque<T>,
@@ -13,7 +13,7 @@ pub struct FilterIIRPeakBell<T> {
     a_coeffs : Vec<T>
 }
 
-impl FilterIIRPeakBell<Complex64> {
+impl FilterIIRPeakBell<Complex<f64>> {
     /// For audio, use `FilterIIRPeakBell<f64>`
     /// Create a peak-bell filter 
     pub fn new(bands : &[(f64, f64, f64)], sample_rate : usize) -> Self {
@@ -28,34 +28,34 @@ impl FilterIIRPeakBell<Complex64> {
             let pole_radius = f64::sqrt((1. - thickness / amplitude) / (1. + thickness / amplitude));
             let zero_radius = f64::sqrt((1. - thickness * amplitude) / (1. + thickness * amplitude));
 
-            poles.push(Complex64::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
-            zeroes.push(Complex64::new(zero_radius * angle.cos(), zero_radius * angle.sin()));
+            poles.push(Complex::<f64>::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
+            zeroes.push(Complex::<f64>::new(zero_radius * angle.cos(), zero_radius * angle.sin()));
         }
 
         // polynomial expansion with convolution
-        let mut feedforward_coeffs = vec![Complex64::from(1.)];
-        let mut feedback_coeffs = vec![Complex64::from(1.)];
+        let mut feedforward_coeffs = vec![Complex::<f64>::from(1.)];
+        let mut feedback_coeffs = vec![Complex::<f64>::from(1.)];
 
         for zero in zeroes {
-            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * zero];
+            let tmp_binomial = [Complex::<f64>::from(1.), Complex::<f64>::from(-1.) * zero];
             feedforward_coeffs = math::convolve(feedforward_coeffs.as_slice(), &tmp_binomial);
         }
         for pole in poles {
-            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * pole];
+            let tmp_binomial = [Complex::<f64>::from(1.), Complex::<f64>::from(-1.) * pole];
             feedback_coeffs = math::convolve(feedback_coeffs.as_slice(), &tmp_binomial);
         }
 
         // remove imaginary components and normalization for both lists
         //let feedforward_first = feedforward_coeffs[0].real();
         let feedback_first = feedback_coeffs[0].real();
-        let feedforward_coeffs_norm : Vec<Complex64> = feedforward_coeffs
+        let feedforward_coeffs_norm : Vec<Complex<f64>> = feedforward_coeffs
             .iter()
             .map(|x| *x / feedback_first)
             .collect();
         // also, flip signs for after-first entries in feedbacks and remove first entry
-        let feedback_coeffs_norm : Vec<Complex64> = feedback_coeffs
+        let feedback_coeffs_norm : Vec<Complex<f64>> = feedback_coeffs
             .iter()
-            .map(|x| Complex64::from(-1.) * *x / feedback_first)
+            .map(|x| Complex::<f64>::from(-1.) * *x / feedback_first)
             .enumerate()
             .filter(|(i, _)| *i > 0)
             .map(|(_, x)| x)
@@ -64,8 +64,8 @@ impl FilterIIRPeakBell<Complex64> {
         let max_prev_inps = feedforward_coeffs_norm.len();
         let max_prev_outs = feedback_coeffs_norm.len();
         Self {
-            inps: VecDeque::from(vec![Complex64::from(0.); max_prev_inps]),
-            outs: VecDeque::from(vec![Complex64::from(0.); max_prev_outs]),
+            inps: VecDeque::from(vec![Complex::<f64>::from(0.); max_prev_inps]),
+            outs: VecDeque::from(vec![Complex::<f64>::from(0.); max_prev_outs]),
             b_coeffs: feedforward_coeffs_norm,
             a_coeffs: feedback_coeffs_norm
         }
@@ -86,22 +86,22 @@ impl FilterIIRPeakBell<f64> {
             let pole_radius = f64::sqrt((1. - thickness / amplitude).clamp(0., f64::MAX) / (1. + thickness / amplitude));
             let zero_radius = f64::sqrt((1. - thickness * amplitude).clamp(0., f64::MAX) / (1. + thickness * amplitude));
 
-            poles.push(Complex64::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
-            poles.push(Complex64::new(pole_radius * angle.cos(), -1. * pole_radius * angle.sin()));
-            zeroes.push(Complex64::new(zero_radius * angle.cos(), zero_radius * angle.sin()));
-            zeroes.push(Complex64::new(zero_radius * angle.cos(), -1. * zero_radius * angle.sin()));
+            poles.push(Complex::<f64>::new(pole_radius * angle.cos(), pole_radius * angle.sin()));
+            poles.push(Complex::<f64>::new(pole_radius * angle.cos(), -1. * pole_radius * angle.sin()));
+            zeroes.push(Complex::<f64>::new(zero_radius * angle.cos(), zero_radius * angle.sin()));
+            zeroes.push(Complex::<f64>::new(zero_radius * angle.cos(), -1. * zero_radius * angle.sin()));
         }
 
         // polynomial expansion with convolution
-        let mut feedforward_coeffs = vec![Complex64::from(1.)];
-        let mut feedback_coeffs = vec![Complex64::from(1.)];
+        let mut feedforward_coeffs = vec![Complex::<f64>::from(1.)];
+        let mut feedback_coeffs = vec![Complex::<f64>::from(1.)];
 
         for zero in zeroes {
-            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * zero];
+            let tmp_binomial = [Complex::<f64>::from(1.), Complex::<f64>::from(-1.) * zero];
             feedforward_coeffs = math::convolve(feedforward_coeffs.as_slice(), &tmp_binomial);
         }
         for pole in poles {
-            let tmp_binomial = [Complex64::from(1.), Complex64::from(-1.) * pole];
+            let tmp_binomial = [Complex::<f64>::from(1.), Complex::<f64>::from(-1.) * pole];
             feedback_coeffs = math::convolve(feedback_coeffs.as_slice(), &tmp_binomial);
         }
 
