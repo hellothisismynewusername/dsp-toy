@@ -16,7 +16,7 @@ pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : us
 
     /// `STATE_DIM` x `STATE_DIM`
     pub state_transition : SMatrixTimes<T, STATE_DIM, STATE_DIM>,
-    /// `STATE_DIM` x `STATE_CONTROL`
+    /// `STATE_DIM` x `CONTROL_DIM`
     pub control : Option<SMatrixTimes<T, STATE_DIM, CONTROL_DIM>>,
     /// `STATE_DIM` x `STATE_DIM`
     pub process_noise_covariance : Option<SMatrixTimes<T, STATE_DIM, STATE_DIM>>,
