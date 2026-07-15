@@ -1,6 +1,6 @@
 # dsp-toy
 
-A small, highly unprofessional WIP library for DSP, with simple functionalities for DFT, FFT, STFT, FIR/IIR filtering, and other digital signal-related stuff.  
+A small, highly unprofessional WIP library for DSP, with simple functionalities for DFT, FFT, STFT, FIR/IIR filtering, Multivariate Linear Kalman filtering, and other digital signal-related stuff.  
 Provided is a `Signal` struct for owning and easily handling signal data, particularily through usage of the builder pattern (function chaining).  
 This project's purpose is for learning, so efficiency, ergonomics, and thourough testing weren't prioritized.
 

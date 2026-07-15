@@ -6,16 +6,17 @@ pub mod real_time;
 pub mod cdylib;
 
 #[cfg(test)]
-mod tests {
-    use std::ops::Mul;
+mod kalman_tests {
     use litemap::LiteMap;
-use nalgebra::{ComplexField, SMatrix};
+    use nalgebra::{Complex, ComplexField, SMatrix};
 
-    use crate::{math, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear}, real_time_signal_processer::RealTimeSignalProcessor}, signal::signal::Signal, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
+    use crate::{real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex}, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
 
     #[test]
     /// Values for this example were taken from https://kalmanfilter.net/kalman1d_pn.html#:~:text=EXAMPLE%206%20%E2%80%93%20ESTIMATING%20THE%20TEMPERATURE%20OF%20THE%20LIQUID%20IN%20A%20TANK
     fn kalman_linear_simple_1d_test() {
+        assert_eq!(equality_accuracy(), 2);
+
         let print = false;
 
         let mut filter = FilterKalmanLinear::<f64, 1, 1, 0> {
@@ -55,7 +56,7 @@ use nalgebra::{ComplexField, SMatrix};
             }
         }
 
-        assert_eq!(49.998, round_to_place(final_val, 3));
+        assert_eq!(50.00, round_to_place(final_val, 2));
     }
 
     /// Multivariate Linear Kalman test: A drone that captures its x and y position periodically and is controlled.
@@ -70,8 +71,23 @@ use nalgebra::{ComplexField, SMatrix};
     /// It's a discrete white noise acceleration model, so it just assumes a sampled acceleration stays constant through its time interval.
     /// 
     /// Control input: Commanded x and y accelerations. Inputs are constant in their time interval.
+    //
+    // True values:
+    // [10.0000,  5.0000,  0.0000,  0.0000]
+    // [10.5001,  5.0299,  1.0002,  0.0597]
+    // [11.9730,  5.0006,  1.9454, -0.1184]
+    // [14.1229,  4.9330,  2.3545, -0.0167]
+    // [16.4834,  5.4504,  2.3665,  1.0513]
+    // [18.8007,  6.8397,  2.2681,  1.7272]
+    // [20.8678,  8.8026,  1.8660,  2.1986]
+    // [22.2443, 10.9082,  0.8871,  2.0125]
+    // [22.6285, 12.7402, -0.1187,  1.6516]
+    // [22.3754, 14.0961, -0.3876,  1.0601]
+    // [21.7977, 15.0272, -0.7678,  0.8022]
     #[test]
     fn kalman_linear_multivariate_test() {
+        assert_eq!(equality_accuracy(), 2);
+
         let print = false;
 
         const TIME_STEP : f64 = 0.5;
@@ -145,9 +161,9 @@ use nalgebra::{ComplexField, SMatrix};
         };
 
         if print {
-            println!("state transition {:?}", filter.state_transition.multiply_entries_float(0.5));
-            println!("control {:?}", filter.control.as_ref().unwrap().multiply_entries_float(0.5));
-            println!("process_noise_covariance {:?}", filter.process_noise_covariance.as_ref().unwrap().multiply_entries_float(0.5));
+            println!("state transition {:?}", filter.state_transition.multiply_entries_float(TIME_STEP));
+            println!("control {:?}", filter.control.as_ref().unwrap().multiply_entries_float(TIME_STEP));
+            println!("process_noise_covariance {:?}", filter.process_noise_covariance.as_ref().unwrap().multiply_entries_float(TIME_STEP));
         }
 
         let inputs = [
@@ -223,8 +239,167 @@ use nalgebra::{ComplexField, SMatrix};
                 println!("Calculated estimate at {}: {:?}", i, tmp);
             }
         }
-        assert_eq!(12.981, round_to_place(final_estimate[(0, 0)], 3));
+        assert_eq!(12.98, round_to_place(final_estimate[(0, 0)], 2));
     }
+
+    /// Complex linear Kalman filter test: tracks a rotating complex I/Q phasor.
+    ///
+    /// State: A single complex value representing the signal phasor, `I + jQ`.
+    ///
+    /// Measurement: A noisy complex I/Q sample of the phasor.
+    ///
+    /// Measurement noise: Proper, circularly symmetric complex Gaussian noise. Its real and imaginary components are independent and have equal variance.
+    ///
+    /// Process noise: Small unpredictable changes in the phasor not captured by the model.
+    /// The real and imaginary components are independent and have equal variance; the disturbance has no preferred direction or phase in the I/Q plane.
+    ///
+    /// Control input: A phasor applied in a sample step.
+    ///
+    /// The phasor rotates by a known angle between successive samples.
+    //
+    // True values:
+    // 1.000000000 + 0.000000000j,
+    // 0.926025404 + 0.500000000j,
+    // Complex64::new( 0.546961524,  0.904025404),
+    // Complex64::new( 0.041669873,  1.036389727),
+    // Complex64::new(-0.476107695,  0.922374769),
+    // Complex64::new(-0.910508743,  0.580746134),
+    // Complex64::new(-1.075896769,  0.042686533),
+    // Complex64::new(-0.943097201, -0.464980762),
+    // Complex64::new(-0.588255753, -0.878233753),
+    // Complex64::new(-0.065327550, -1.052700617),
+    // Complex64::new( 0.446774991, -0.943329251),
+    #[test]
+    fn complex_kalman_linear_test() {
+        assert_eq!(equality_accuracy(), 2);
+
+        let print = false;
+
+        const STATE_DIM: usize = 1;
+        const MEASURE_DIM: usize = 1;
+        const CONTROL_DIM: usize = 1;
+
+        const PROCESS_NOISE_RMS: f64 = 0.05;
+        const MEASUREMENT_NOISE_RMS: f64 = 0.2;
+
+        let theta = std::f64::consts::PI / 6.0;
+
+        let rotation: Complex<f64> = Complex::<f64>::new(theta.cos(), theta.sin());
+
+        let process_variance = PROCESS_NOISE_RMS.powi(2);
+        let measurement_variance = MEASUREMENT_NOISE_RMS.powi(2);
+
+        let state_transition =
+            SMatrix::<Complex<f64>, STATE_DIM, STATE_DIM>::new(rotation);
+
+        let control =
+            SMatrix::<Complex<f64>, STATE_DIM, CONTROL_DIM>::new(Complex::<f64>::new(1.0, 0.0));
+
+        let observation =
+            SMatrix::<Complex<f64>, MEASURE_DIM, STATE_DIM>::new(Complex::<f64>::new(1.0, 0.0));
+
+        let process_noise_covariance =
+            SMatrix::<Complex<f64>, STATE_DIM, STATE_DIM>::new(Complex::<f64>::new(process_variance, 0.0));
+
+        let measurement_covariance =
+            SMatrix::<Complex<f64>, MEASURE_DIM, MEASURE_DIM>::new(Complex::<f64>::new(measurement_variance, 0.0));
+
+        let mut filter = FilterKalmanLinearComplex::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            state_vector: SMatrix::<Complex<f64>, STATE_DIM, 1>::new(Complex::<f64>::new(1.08, -0.05)),
+            observation: observation,
+            measure_covariance: measurement_covariance,
+            state_transition: SMatrixTimes::<Complex<f64>, STATE_DIM, STATE_DIM>::new(state_transition, 0),
+            control: Some(SMatrixTimes::<Complex<f64>, STATE_DIM, CONTROL_DIM>::new(control, 0)),
+            process_noise_covariance: Some(SMatrixTimes::<Complex<f64>, STATE_DIM, STATE_DIM>::new(process_noise_covariance, 0)),
+            estimate_covariance: SMatrix::<Complex<f64>, STATE_DIM, STATE_DIM>::new(Complex::new(MEASUREMENT_NOISE_RMS.powf(2.), 0.))
+        };
+
+        let inputs = [
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.806025404,  0.53)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.05,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.596961524,  0.994025404)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.021669873,  0.926389727)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.02, -0.01))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.376107695,  0.962374769)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.970508743,  0.600746134)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(-0.03,  0.02))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-1.045896769, -0.037313467)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-1.033097201, -0.404980762)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.01,  0.03))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.518255753, -0.868233753)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.105327550, -1.122700617)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.466774991, -0.893329251)),
+                control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(-0.02,  0.00))),
+                process_noise_covariance: None,
+                delta_time: None
+            },
+        ];
+
+        let mut final_estimate = SMatrix::<Complex<f64>, STATE_DIM, 1>::zeros();
+        for (i, input) in inputs.iter().enumerate() {
+            let tmp: SMatrix<Complex<f64>, STATE_DIM, 1> = filter.process_sample(input);
+            if i == inputs.len() - 1 {
+                final_estimate = tmp.clone();
+            }
+            if print {
+                println!("Calculated estimate at {}: {:?}", i, tmp);
+            }
+        }
+        let final_estimate_re = final_estimate[(0, 0)].real();
+        let final_estimate_im = final_estimate[(0, 0)].imaginary();
+        assert_eq!(0.45, round_to_place(final_estimate_re, 2));
+        assert_eq!(-0.95, round_to_place(final_estimate_im, 2));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Mul;
+    use nalgebra::{ComplexField};
+
+    use crate::{math, signal::signal::Signal, utility::{equality_accuracy}};
 
     #[test]
     fn iir_eq_filter() {

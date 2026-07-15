@@ -1,6 +1,6 @@
 use nalgebra::SMatrix;
 
-/// T is the type that's in matrices. Can be Complex<f64> or f64.
+/// T is the type that's in matrices. Can be Complex.
 /// `process_noise_covariance` is there if you want to update Q during the run.
 /// No need to use if you don't have to change anything on the fly and nothing relies on time step
 pub struct KalmanInput<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {

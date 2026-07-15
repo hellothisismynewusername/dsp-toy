@@ -9,7 +9,7 @@ pub fn round_to_place(num : f64, place : usize) -> f64 {
 }
 
 pub fn j() -> Complex<f64> {
-    Complex::<f64>::new(0., 1.)
+    Complex::<f64>::i()
 }
 
 pub fn equality_accuracy() -> usize {
@@ -26,7 +26,7 @@ pub struct SMatrixTimes<T, const R : usize, const C : usize>
 
 impl<T, const R : usize, const C : usize> SMatrixTimes<T, R, C>
 where 
-    T: ComplexField + Copy,
+    T: Copy,
 {
     pub fn new(matrix : SMatrix<T, R, C>, num_multiplied : usize) -> Self {
         SMatrixTimes {
@@ -56,13 +56,16 @@ where
     i32: From<T>
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_int(&mut self, entry_multiplier_value : T) {
+    pub fn multiply_entries_int(&mut self, entry_multiplier_value : T) -> SMatrix<T, R, C> {
         if self.entry_multipliers_powers.is_none() {
-            return;
+            return self.matrix;
         }
+        let mut out = self.matrix.clone();
         for (pos, curr_power) in self.entry_multipliers_powers.as_ref().unwrap().iter() {
-            self.matrix[*pos] = self.matrix[*pos] * entry_multiplier_value.powi(i32::from(*curr_power))
+            out[*pos] = self.matrix[*pos] * entry_multiplier_value.powi(i32::from(*curr_power))
         }
+
+        out
     }
 }
 
@@ -91,12 +94,15 @@ where
     T: ComplexField + Copy,
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_complex(&mut self, entry_multiplier_value : T) {
+    pub fn multiply_entries_complex(&mut self, entry_multiplier_value : T) -> SMatrix<T, R, C> {
         if self.entry_multipliers_powers.is_none() {
-            return;
+            return self.matrix;
         }
+        let mut out = self.matrix.clone();
         for (pos, curr_power) in self.entry_multipliers_powers.as_ref().unwrap().iter() {
-            self.matrix[*pos] = self.matrix[*pos] * entry_multiplier_value.powc(*curr_power)
+            out[*pos] = self.matrix[*pos] * entry_multiplier_value.powc(*curr_power)
         }
+
+        out
     }
 }

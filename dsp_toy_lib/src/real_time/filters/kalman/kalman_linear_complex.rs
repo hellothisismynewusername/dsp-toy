@@ -1,10 +1,11 @@
 use std::usize;
 
-use nalgebra::{RealField, SMatrix};
+use nalgebra::{ComplexField, SMatrix};
 
 use crate::{real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes}};
 
-pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
+#[derive(Debug)]
+pub struct FilterKalmanLinearComplex<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
     /// `STATE_DIM` x `1`
     pub state_vector : SMatrix<T, STATE_DIM, 1>,
     /// `STATE_DIM` x `STATE_DIM`
@@ -22,10 +23,9 @@ pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : us
     pub process_noise_covariance : Option<SMatrixTimes<T, STATE_DIM, STATE_DIM>>,
 }
 
-// This is for when T is integer or floating point. Not Complex. An int-only version can be made, which would in theory have a better performance than this.
-impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinearComplex<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: RealField + Copy + Clone
+    T: ComplexField + Copy + Clone
 {
     pub fn init(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance) = self.predict_internal(input);
@@ -43,13 +43,13 @@ where
     fn predict_internal(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
         // handle needed changes regarding dynamically changing values in the matrices
         let state_transition = if let Some(delta_time) = input.delta_time {
-            self.state_transition.multiply_entries_float(delta_time)
+            self.state_transition.multiply_entries_complex(delta_time)
         } else {
             self.state_transition.matrix
         };
         let control_o = if self.control.is_some() {
             if let Some(delta_time) = input.delta_time {
-                Some(self.control.as_mut().unwrap().multiply_entries_float(delta_time))
+                Some(self.control.as_mut().unwrap().multiply_entries_complex(delta_time))
             } else {
                 Some(self.control.as_mut().unwrap().matrix)
             }
@@ -58,7 +58,7 @@ where
         };
         let process_noise_covariance_o = if self.process_noise_covariance.is_some() {
             if let Some(delta_time) = input.delta_time {
-                Some(self.process_noise_covariance.as_mut().unwrap().multiply_entries_float(delta_time))
+                Some(self.process_noise_covariance.as_mut().unwrap().multiply_entries_complex(delta_time))
             } else {
                 Some(self.process_noise_covariance.as_mut().unwrap().matrix)
             }
@@ -78,9 +78,9 @@ where
             state_transition * self.state_vector
         };
         let extrapolate_estimate_covariance: SMatrix<T, STATE_DIM, STATE_DIM> = if let Some(process_noise_covariance) = process_noise_covariance_o.as_ref() {
-            state_transition * self.estimate_covariance * state_transition.transpose() + process_noise_covariance
+            state_transition * self.estimate_covariance * state_transition.adjoint() + process_noise_covariance
         } else {
-            state_transition * self.estimate_covariance * state_transition.transpose()
+            state_transition * self.estimate_covariance * state_transition.adjoint()
         };
 
         (extrapolate_state, extrapolate_estimate_covariance)
@@ -90,9 +90,9 @@ where
 impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
     RealTimeSignalProcessor<&KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
     for
-    FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+    FilterKalmanLinearComplex<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: RealField + Copy + Clone
+    T: ComplexField + Copy + Clone
 {
     fn process_sample(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
         
@@ -104,11 +104,11 @@ where
         
         // Correct
 
-        let mut innovation_covariance = self.observation * self.estimate_covariance * self.observation.transpose() + self.measure_covariance;
+        let mut innovation_covariance = self.observation * self.estimate_covariance * self.observation.adjoint() + self.measure_covariance;
         if !innovation_covariance.try_inverse_mut() {
             panic!("Innovation covariance couldn't be inverted");
         }
-        let kalman_gain = self.estimate_covariance * self.observation.transpose() * innovation_covariance;
+        let kalman_gain = self.estimate_covariance * self.observation.adjoint() * innovation_covariance;
 
         let updated_state = self.state_vector + kalman_gain * (input.measurement_vector - self.observation * self.state_vector);
         self.state_vector = updated_state;
