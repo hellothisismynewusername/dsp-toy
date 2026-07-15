@@ -1,23 +1,23 @@
 use std::f64::consts::PI;
 
-use easy_complex::Complex64;
+use nalgebra::Complex;
 
-use crate::{consts::{EULER, HAMMING_WINDOW_ALPHA, HAMMING_WINDOW_BETA}, utility::j};
+use crate::{consts::{BLACKMAN_WINDOW_C_0, BLACKMAN_WINDOWS_C_1, BLACKMAN_WINDOWS_C_2, EULER, HAMMING_WINDOW_C_0, HAMMING_WINDOW_C_1}, utility::j};
 
 /// Compute convolution without transforming signals to frequency domain, producing the convolved output. Generally less performant than FFT with multiplication.
-pub fn convolve(data : &[Complex64], ir : &[Complex64]) -> Vec<Complex64> {
-    let mut out = vec![Complex64::from(0); data.len() + ir.len() - 1];
+pub fn convolve(data : &[Complex<f64>], ir : &[Complex<f64>]) -> Vec<Complex<f64>> {
+    let mut out: Vec<_> = vec![Complex::<f64>::from(0.); data.len() + ir.len() - 1];
     for k in 0..out.len() {
         let sum  = data.iter().enumerate().map(|(i, val)| {
             let ir_val = *k
                 .checked_sub(i)
                 .and_then(|ind| ir.get(ind))
-                .unwrap_or(&Complex64::from(0));
+                .unwrap_or(&Complex::<f64>::from(0.));
 
             *val * ir_val
         }).reduce(|sum, x| {
             sum + x
-        }).unwrap_or(Complex64::from(0));
+        }).unwrap_or(Complex::<f64>::from(0.));
         out[k] = sum;
     }
 
@@ -27,14 +27,14 @@ pub fn convolve(data : &[Complex64], ir : &[Complex64]) -> Vec<Complex64> {
 // ------------------- FOURIER
 
 /// Compute DFT.
-pub fn dft(data : &[Complex64]) -> Vec<Complex64> {
+pub fn dft(data : &[Complex<f64>]) -> Vec<Complex<f64>> {
     let mut data_tmp = Vec::with_capacity(data.len());
 
     for k in 0..data.len() {
         // polar form calculation, but signal will be in cartesian
         let tmp = data.iter().enumerate().map(|(n, val)| {
-            *val * Complex64::from(EULER).powc(
-                    Complex64::from(-1.) * j() * (Complex64::from(2. * PI) / Complex64::from(data.len() as f64)) * Complex64::from(k as f64) * Complex64::from(n as f64)
+            *val * Complex::<f64>::from(EULER).powc(
+                    Complex::<f64>::from(-1.) * j() * (Complex::<f64>::from(2. * PI) / Complex::<f64>::from(data.len() as f64)) * Complex::<f64>::from(k as f64) * Complex::<f64>::from(n as f64)
                 )
         }).reduce(|sum, x| {
             sum + x
@@ -47,17 +47,17 @@ pub fn dft(data : &[Complex64]) -> Vec<Complex64> {
 }
 
 /// Compute Inverse DFT.
-pub fn idft(data : &[Complex64]) -> Vec<Complex64> {
-    let mut data_tmp : Vec<Complex64> = Vec::with_capacity(data.len());
+pub fn idft(data : &[Complex<f64>]) -> Vec<Complex<f64>> {
+    let mut data_tmp : Vec<Complex<f64>> = Vec::with_capacity(data.len());
 
     for n in 0..data.len() {
         let tmp = data.iter().enumerate().map(|(k, val)| {
-            *val * Complex64::from(EULER).powc(
-                j() * (Complex64::from(2. * PI) / Complex64::from(data.len() as f64)) * Complex64::from(k as f64) * Complex64::from(n as f64)
+            *val * Complex::<f64>::from(EULER).powc(
+                j() * (Complex::<f64>::from(2. * PI) / Complex::<f64>::from(data.len() as f64)) * Complex::<f64>::from(k as f64) * Complex::<f64>::from(n as f64)
             )
         }).reduce(|sum, x| {
             sum + x
-        }).unwrap() / Complex64::from(data.len() as f64);
+        }).unwrap() / Complex::<f64>::from(data.len() as f64);
 
         data_tmp.push(tmp);
     }
@@ -66,7 +66,7 @@ pub fn idft(data : &[Complex64]) -> Vec<Complex64> {
 }
 
 /// Compute Radix-2 FFT, using Bit-reversal permutation.
-pub fn r2fft(data : &mut [Complex64]) {
+pub fn r2fft(data : &mut [Complex<f64>]) {
     if data.len() > 1 {
         let n = data.len();
 
@@ -89,7 +89,7 @@ pub fn r2fft(data : &mut [Complex64]) {
                     let ind_b = ind_a + half_len;
 
                     let angle = (2. * PI * j as f64) / block_len as f64;
-                    let twiddle_n = Complex64::new(angle.cos(), -1. * angle.sin());
+                    let twiddle_n = Complex::<f64>::new(angle.cos(), -1. * angle.sin());
 
                     let val_a = data[ind_a];
                     let val_b_scaled = data[ind_b] * twiddle_n;
@@ -103,7 +103,7 @@ pub fn r2fft(data : &mut [Complex64]) {
 }
 
 /// Compute Inverse Radix-2 FFT, using Bit-reversal permutation.
-pub fn ir2fft(data : &mut [Complex64]) {
+pub fn ir2fft(data : &mut [Complex<f64>]) {
     if data.len() > 1 {
         let n = data.len();
 
@@ -126,7 +126,7 @@ pub fn ir2fft(data : &mut [Complex64]) {
                     let ind_b = ind_a + half_len;
 
                     let angle = (2. * PI * j as f64) / block_len as f64;
-                    let twiddle_n = Complex64::new(angle.cos(), angle.sin());
+                    let twiddle_n = Complex::<f64>::new(angle.cos(), angle.sin());
 
                     let val_a = data[ind_a];
                     let val_b_scaled = data[ind_b] * twiddle_n;
@@ -137,22 +137,22 @@ pub fn ir2fft(data : &mut [Complex64]) {
             }
         }
 
-        data.iter_mut().for_each(|x| *x = *x / Complex64::from(n as f64));
+        data.iter_mut().for_each(|x| *x = *x / Complex::<f64>::from(n as f64));
     }
 }
 
-pub fn r2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
+pub fn r2fft_legacy(data : &[Complex<f64>]) -> Vec<Complex<f64>> {
     if data.len() <= 1 {
         Vec::from(data)
     } else {
         let n = data.len();
 
-        let evens : Box<[Complex64]> = data.iter()
+        let evens : Box<[Complex<f64>]> = data.iter()
             .enumerate()
             .filter(|(i, _)| i % 2 == 0)
             .map(|(_, x)| *x)
             .collect();
-        let odds : Box<[Complex64]>  = data.iter()
+        let odds : Box<[Complex<f64>]>  = data.iter()
             .enumerate()
             .filter(|(i, _)| i % 2 == 1)
             .map(|(_, x)| *x)
@@ -162,10 +162,10 @@ pub fn r2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
         let odds_fft = r2fft_legacy(odds.iter().as_slice());
 
         let angle = (-2. * PI) / n as f64;
-        let twiddle_n = Complex64::new(angle.cos(), angle.sin());
+        let twiddle_n = Complex::<f64>::new(angle.cos(), angle.sin());
 
-        let mut twiddle = Complex64::from(1);
-        let mut out = vec![Complex64::from(0); n];
+        let mut twiddle = Complex::<f64>::from(1.);
+        let mut out = vec![Complex::<f64>::from(0.); n];
 
         for j in 0..(n / 2) {
             out[j] = evens_fft[j] + twiddle * odds_fft[j];
@@ -177,18 +177,18 @@ pub fn r2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
     }
 }
 
-pub fn ir2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
+pub fn ir2fft_legacy(data : &[Complex<f64>]) -> Vec<Complex<f64>> {
     if data.len() <= 1 {
         Vec::from(data)
     } else {
         let n = data.len();
 
-        let evens_fft : Box<[Complex64]> = data.iter()
+        let evens_fft : Box<[Complex<f64>]> = data.iter()
             .enumerate()
             .filter(|(i, _)| i % 2 == 0)
             .map(|(_, x)| *x)
             .collect();
-        let odds_fft : Box<[Complex64]>  = data.iter()
+        let odds_fft : Box<[Complex<f64>]>  = data.iter()
             .enumerate()
             .filter(|(i, _)| i % 2 == 1)
             .map(|(_, x)| *x)
@@ -198,14 +198,14 @@ pub fn ir2fft_legacy(data : &[Complex64]) -> Vec<Complex64> {
         let odds = ir2fft_legacy(odds_fft.iter().as_slice());
 
         let angle = (-2. * PI) / n as f64;
-        let twiddle_n_bar = Complex64::new(angle.cos(), -1. * angle.sin());
+        let twiddle_n_bar = Complex::<f64>::new(angle.cos(), -1. * angle.sin());
 
-        let mut twiddle_bar = Complex64::from(1);
-        let mut out = vec![Complex64::from(0); n];
+        let mut twiddle_bar = Complex::<f64>::from(1.);
+        let mut out = vec![Complex::<f64>::from(0.); n];
 
         for j in 0..(n / 2) {
-            out[j] = (evens[j] + twiddle_bar * odds[j]) / Complex64::from(2);
-            out[j + n / 2] = (evens[j] - twiddle_bar * odds[j]) / Complex64::from(2);
+            out[j] = (evens[j] + twiddle_bar * odds[j]) / Complex::<f64>::from(2.);
+            out[j + n / 2] = (evens[j] - twiddle_bar * odds[j]) / Complex::<f64>::from(2.);
             twiddle_bar = twiddle_bar * twiddle_n_bar;
         }
 
@@ -220,9 +220,13 @@ pub fn hann(n : usize, len : usize) -> f64 {
 }
 
 pub fn hamming(n : usize, len : usize) -> f64 {
-    HAMMING_WINDOW_ALPHA - HAMMING_WINDOW_BETA * ((2. * PI * n as f64) / len as f64).cos()
+    HAMMING_WINDOW_C_0 - HAMMING_WINDOW_C_1 * ((2. * PI * n as f64) / len as f64).cos()
 }
 
 pub fn rectangular(_ : usize, _ : usize) -> f64 {
     1_f64
+}
+
+pub fn blackman(n : usize, len : usize) -> f64 {
+    BLACKMAN_WINDOW_C_0 - BLACKMAN_WINDOWS_C_1 * ((2. * PI * n as f64) / len as f64).cos() + BLACKMAN_WINDOWS_C_2 * ((4. * PI * n as f64) / len as f64).cos()
 }

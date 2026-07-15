@@ -1,11 +1,12 @@
 use std::{collections::VecDeque};
 
-use easy_complex::{Complex64};
+use nalgebra::{Complex, ComplexField};
 use crate::{math, real_time::{filters::filter_iir_peak_bell::FilterIIRPeakBell, real_time_signal_processer::RealTimeSignalProcessor}};
 
+/// A struct for non-real-time signal processing.
 #[derive(Debug, Clone)]
 pub struct Signal {
-    pub data : Vec<Complex64>,
+    pub data : Vec<Complex<f64>>,
 }
 
 impl Signal {
@@ -15,7 +16,7 @@ impl Signal {
         }
     }
 
-    pub fn from_fn_mut(function : &mut dyn FnMut(usize) -> Complex64, start : usize, end : usize) -> Self {
+    pub fn from_fn_mut(function : &mut dyn FnMut(usize) -> Complex<f64>, start : usize, end : usize) -> Self {
         let mut tmp = Vec::new();
         for i in start..end {
             tmp.push(function(i));
@@ -24,7 +25,7 @@ impl Signal {
         Self { data: tmp }
     }
 
-    pub fn from_fn(function : &dyn Fn(usize) -> Complex64, start : usize, end : usize) -> Self {
+    pub fn from_fn(function : &dyn Fn(usize) -> Complex<f64>, start : usize, end : usize) -> Self {
         let mut tmp = Vec::new();
         for i in start..end {
             tmp.push(function(i));
@@ -99,39 +100,39 @@ impl Signal {
     }
 
     pub fn zero_extend_start_and_end(self, num : usize) -> Self {
-        let mut data_tmp : VecDeque<Complex64> = self.data.into();
+        let mut data_tmp : VecDeque<Complex<f64>> = self.data.into();
         for _ in 0..num {
-            data_tmp.push_front(Complex64::from(0));
-            data_tmp.push_back(Complex64::from(0));
+            data_tmp.push_front(Complex::<f64>::from(0.));
+            data_tmp.push_back(Complex::<f64>::from(0.));
         }
         Self { data: data_tmp.into() }
     }
 
     pub fn zero_extend_end(mut self, num : usize) -> Self {
         for _ in 0..num {
-            self.data.push(Complex64::from(0));
+            self.data.push(Complex::<f64>::from(0.));
         }
         self
     }
 
     pub fn zero_extend_end_mut(&mut self, num : usize) -> &Self {
         for _ in 0..num {
-            self.data.push(Complex64::from(0));
+            self.data.push(Complex::<f64>::from(0.));
         }
         self
     }
 
     pub fn zero_extend_start(self, num : usize) -> Self {
-        let mut data_tmp : VecDeque<Complex64> = self.data.into();
+        let mut data_tmp : VecDeque<Complex<f64>> = self.data.into();
         for _ in 0..num {
-            data_tmp.push_front(Complex64::from(0));
+            data_tmp.push_front(Complex::<f64>::from(0.));
         }
         Self { data: data_tmp.into() }
     }
 
     pub fn zero_extend_start_mut(&mut self, num : usize) -> &Self {
         for _ in 0..num {
-            self.data.insert(0, Complex64::from(0));
+            self.data.insert(0, Complex::<f64>::from(0.));
         }
         self
     }
@@ -141,10 +142,10 @@ impl Signal {
     }
 
     pub fn iter_imag(&self) -> impl Iterator<Item = f64> {
-        self.data.iter().map(|x| x.imag())
+        self.data.iter().map(|x| x.imaginary())
     }
 
-    pub fn iter_complex(&self) -> impl Iterator<Item = Complex64> {
+    pub fn iter_complex(&self) -> impl Iterator<Item = Complex<f64>> {
         self.data.iter().map(|x| *x)
     }
 
@@ -168,7 +169,7 @@ impl Signal {
             self.len()
         };
         for (i, val) in self.data.iter_mut().enumerate() {
-            *val = *val * Complex64::from(window_function(i, len));
+            *val = *val * Complex::<f64>::from(window_function(i, len));
         }
         self
     }
@@ -184,7 +185,7 @@ impl Signal {
     /// Modifies and consumes `self` and returns the final signal.
     pub fn overlap(mut self, other : &Signal, offset : usize) -> Self {
         let overlap_len = self.len() - offset;
-        self.data.resize(self.len() + (other.len() - overlap_len), Complex64::from(0));
+        self.data.resize(self.len() + (other.len() - overlap_len), Complex::<f64>::from(0.));
 
         for i in offset..self.data.len() {
             self[i] = self[i] + other[i - offset];
@@ -240,7 +241,10 @@ impl Signal {
             }
 
             let mut freq = if self.len().is_power_of_two() {
-                self.radix_2_fft().expect("Error: resampling unexpected error during fft")
+                match self.radix_2_fft() {
+                    Ok(x) => x,
+                    Err(_) => return Err("Error: resampling unexpected error during fft")
+                }
             } else {
                 self.forward_dft()
             };
@@ -249,13 +253,13 @@ impl Signal {
                 if freq.len() % 2 == 0 {
                     let nyquist_bin = freq.len() / 2;
                     let nyquist = freq[nyquist_bin];
-                    freq[nyquist_bin] = nyquist / Complex64::from(2.);
+                    freq[nyquist_bin] = nyquist / Complex::<f64>::from(2.);
 
                     for _ in 0..zeroes {
-                        freq.data.insert(nyquist_bin + 1, Complex64::from(0.));
+                        freq.data.insert(nyquist_bin + 1, Complex::<f64>::from(0.));
                     }
 
-                    freq[nyquist_bin + zeroes as usize] = nyquist / Complex64::from(2.);
+                    freq[nyquist_bin + zeroes as usize] = nyquist / Complex::<f64>::from(2.);
                     
                     let gain_mult = 1. + (zeroes as f64 / n as f64);
 
@@ -267,7 +271,7 @@ impl Signal {
                 } else {
                     let halfway = freq.len() / 2;
                     for _ in 0..zeroes {
-                        freq.data.insert(halfway + 1, Complex64::from(0.));
+                        freq.data.insert(halfway + 1, Complex::<f64>::from(0.));
                     }
 
                     let gain_mult = 1. + (zeroes as f64 / n as f64);
@@ -319,7 +323,7 @@ impl Signal {
         let mut filter = FilterIIRPeakBell::new_real(bands, sample_rate);
         let mut data = Vec::with_capacity(self.len());
         for sample in self.iter_real() {
-            data.push(Complex64::from(filter.process_sample(sample)))
+            data.push(Complex::<f64>::from(filter.process_sample(sample)))
         }
         Self {
             data: data
