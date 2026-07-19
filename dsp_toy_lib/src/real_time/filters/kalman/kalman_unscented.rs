@@ -12,7 +12,7 @@ pub struct FilterKalmanUnscented<T, TimeStepType, const STATE_DIM : usize, const
 where 
     TimeStepType: RealField,
     FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
-    FObservation: Fn(T) -> SMatrix<T, MEASURE_DIM, 1>,
+    FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
     FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
 {
     /// `STATE_DIM` x `1`
@@ -43,23 +43,24 @@ where
     TimeStepType: RealField + Copy + Clone + From<usize>,
     T: RealField + Copy + Clone + From<TimeStepType>,
     FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
-    FObservation: Fn(T) -> SMatrix<T, MEASURE_DIM, 1>,
+    FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
     FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
 {
     pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+        let (state, estimate_covariance, _) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
     pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+        let (state, estimate_covariance, _) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
-    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>)
+    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>)
+    -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>, [SMatrix<T, STATE_DIM, 1>; N_OUT])
     where 
         FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
     {
@@ -84,7 +85,7 @@ where
             TimeStepType::from(1)
         };
         
-        let new_sigmas = sigmas.map(|sigma| (self.state_transition)(sigma, time_step));
+        let new_sigmas : [SMatrix<T, STATE_DIM, 1>; N_OUT] = sigmas.map(|sigma| (self.state_transition)(sigma, time_step));
 
         // intellisense seems to have trouble with .sum() with the matrices
         let new_state = weights_mean
@@ -105,7 +106,7 @@ where
             .fold(SMatrix::<T, STATE_DIM, STATE_DIM>::zeros(), |acc, val| acc + val)
         };
 
-        (new_state, new_estimate_covariance)
+        (new_state, new_estimate_covariance, new_sigmas)
     }
 }
 
@@ -117,10 +118,21 @@ where
     TimeStepType: RealField + Copy + Clone + From<usize>,
     T: RealField + Copy + Clone + From<TimeStepType>,
     FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
-    FObservation: Fn(T) -> SMatrix<T, MEASURE_DIM, 1>,
+    FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
     FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
 {
     fn process_sample(&mut self, inp : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
+        
+        // Prediction
+
+        let (state, estimate_covariance, sigmas) = self.predict_internal(&inp);
+        self.state_vector = state;
+        self.estimate_covariance = estimate_covariance;
+
+        // Correct
+
+        let measurement_sigmas = sigmas.map(|s| (self.observation)(s));
+
         todo!()
     }
 }
