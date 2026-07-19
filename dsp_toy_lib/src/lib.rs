@@ -19,13 +19,13 @@ mod kalman_tests {
 
         let print = false;
 
-        let mut filter = FilterKalmanLinear::<f64, 1, 1, 0> {
+        let mut filter = FilterKalmanLinear::<f64, f64, 1, 1, 0> {
             control: None,
             state_vector: SMatrix::<f64, 1, 1>::new(1.),
             estimate_covariance: SMatrix::<f64, 1, 1>::new(10000.), // error = 100
             measure_covariance: SMatrix::<f64, 1, 1,>::new(0.01), // measurement error = 0.1
-            state_transition: SMatrixTimes::<f64, 1, 1>::new(SMatrix::<f64, 1, 1>::new(1.), 0), // modelling a constant value
-            process_noise_covariance: Some(SMatrixTimes::<f64, 1, 1>::new(SMatrix::<f64, 1, 1>::new(0.0001), 0)),
+            state_transition: SMatrixTimes::<f64, f64, 1, 1>::new(SMatrix::<f64, 1, 1>::new(1.), 0), // modelling a constant value
+            process_noise_covariance: Some(SMatrixTimes::<f64, f64, 1, 1>::new(SMatrix::<f64, 1, 1>::new(0.0001), 0)),
             observation: SMatrix::<f64, 1, 1>::new(1.)
         };
         // this example doesn't rely on time step, so we're not using delta_time
@@ -131,14 +131,14 @@ mod kalman_tests {
             ((3, 3,), 2.),
         ]);
 
-        let mut filter = FilterKalmanLinear::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+        let mut filter = FilterKalmanLinear::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
             state_vector: initial_state_vector,
             estimate_covariance: initial_estimate_covariances,
             observation: SMatrix::<f64, MEASURE_DIM, STATE_DIM>::new(1., 0., 0., 0., 0., 1., 0., 0.),
             measure_covariance: SMatrix::<f64, MEASURE_DIM, MEASURE_DIM>::new(measure_noise_as_variance, 0., 0., measure_noise_as_variance),
 
             // dt's are put in place by `map_state_transition`.
-            state_transition: SMatrixTimes::<f64, STATE_DIM, STATE_DIM>::new_with_litemap(
+            state_transition: SMatrixTimes::<f64, f64, STATE_DIM, STATE_DIM>::new_with_litemap(
                 SMatrix::<f64, STATE_DIM, STATE_DIM>::new(
                     1., 0., 1., 0., 
                     0., 1., 0., 1.,
@@ -146,11 +146,11 @@ mod kalman_tests {
                     0., 0., 0., 1.),
                 map_state_transition
             ),
-            control: Some(SMatrixTimes::<f64, STATE_DIM, CONTROL_DIM>::new_with_litemap(
+            control: Some(SMatrixTimes::<f64, f64, STATE_DIM, CONTROL_DIM>::new_with_litemap(
         SMatrix::<f64, STATE_DIM, CONTROL_DIM>::new(0.5, 0., 0., 0.5, 1., 0., 0., 1.),
                 map_control
             )),
-            process_noise_covariance: Some(SMatrixTimes::<f64, STATE_DIM, STATE_DIM>::new_with_litemap(
+            process_noise_covariance: Some(SMatrixTimes::<f64, f64, STATE_DIM, STATE_DIM>::new_with_litemap(
                 SMatrix::<f64, STATE_DIM, STATE_DIM>::new(
                     0.25 * process_noise_as_variance, 0., 0.5 * process_noise_as_variance, 0.,
                     0., 0.25 * process_noise_as_variance, 0., 0.5 * process_noise_as_variance,
@@ -167,61 +167,61 @@ mod kalman_tests {
         }
 
         let inputs = [
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(9.1111250, 5.2244625),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(1.0,  0.0)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(10.6186250, 4.8505250),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(1.0,  0.0)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(9.0173125, 4.5523375),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(0.5,  0.3)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(11.5820375, 5.2031625),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(0.0,  0.8)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(10.9760625, 5.0775750),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(0.0,  0.8)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(11.9340375, 5.3035000),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(-0.5,  0.4)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(13.9099000, 5.8308875),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(-1.0,  0.0)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(13.1311625, 7.6425000),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(-1.0, -0.5)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(12.6269875, 7.1845625),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(0.0, -0.5)),
                 process_noise_covariance: None,
                 delta_time: Some(TIME_STEP)
             },
-            KalmanInput::<f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<f64, MEASURE_DIM, 1>::new(13.0378875, 7.5577500),
                 control_vector: Some(SMatrix::<f64, CONTROL_DIM, 1>::new(0.0,  0.0)),
                 process_noise_covariance: None,
@@ -304,72 +304,72 @@ mod kalman_tests {
         let measurement_covariance =
             SMatrix::<Complex<f64>, MEASURE_DIM, MEASURE_DIM>::new(Complex::<f64>::new(measurement_variance, 0.0));
 
-        let mut filter = FilterKalmanLinearComplex::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+        let mut filter = FilterKalmanLinearComplex::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
             state_vector: SMatrix::<Complex<f64>, STATE_DIM, 1>::new(Complex::<f64>::new(1.08, -0.05)),
             observation: observation,
             measure_covariance: measurement_covariance,
-            state_transition: SMatrixTimes::<Complex<f64>, STATE_DIM, STATE_DIM>::new(state_transition, 0),
-            control: Some(SMatrixTimes::<Complex<f64>, STATE_DIM, CONTROL_DIM>::new(control, 0)),
-            process_noise_covariance: Some(SMatrixTimes::<Complex<f64>, STATE_DIM, STATE_DIM>::new(process_noise_covariance, 0)),
+            state_transition: SMatrixTimes::<Complex<f64>, f64, STATE_DIM, STATE_DIM>::new(state_transition, 0),
+            control: Some(SMatrixTimes::<Complex<f64>, f64, STATE_DIM, CONTROL_DIM>::new(control, 0)),
+            process_noise_covariance: Some(SMatrixTimes::<Complex<f64>, f64, STATE_DIM, STATE_DIM>::new(process_noise_covariance, 0)),
             estimate_covariance: SMatrix::<Complex<f64>, STATE_DIM, STATE_DIM>::new(Complex::new(MEASUREMENT_NOISE_RMS.powf(2.), 0.))
         };
 
         let inputs = [
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.806025404,  0.53)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.05,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.596961524,  0.994025404)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.021669873,  0.926389727)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.02, -0.01))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.376107695,  0.962374769)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.970508743,  0.600746134)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(-0.03,  0.02))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-1.045896769, -0.037313467)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-1.033097201, -0.404980762)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.01,  0.03))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.518255753, -0.868233753)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(-0.105327550, -1.122700617)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(0.00,  0.00))),
                 process_noise_covariance: None,
                 delta_time: None
             },
-            KalmanInput::<Complex<f64>, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+            KalmanInput::<Complex<f64>, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
                 measurement_vector: SMatrix::<Complex<f64>, MEASURE_DIM, 1>::new(Complex::<f64>::new(0.466774991, -0.893329251)),
                 control_vector: Some(SMatrix::<Complex<f64>, CONTROL_DIM, 1>::new(Complex::<f64>::new(-0.02,  0.00))),
                 process_noise_covariance: None,

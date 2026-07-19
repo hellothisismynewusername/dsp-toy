@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use nalgebra::Complex;
+use nalgebra::{Complex, ComplexField, SMatrix};
 
 use crate::{consts::{BLACKMAN_WINDOW_C_0, BLACKMAN_WINDOWS_C_1, BLACKMAN_WINDOWS_C_2, EULER, HAMMING_WINDOW_C_0, HAMMING_WINDOW_C_1}, utility::j};
 

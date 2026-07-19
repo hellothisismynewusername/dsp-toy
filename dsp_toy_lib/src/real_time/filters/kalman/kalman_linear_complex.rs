@@ -1,11 +1,14 @@
-use std::usize;
+use std::{marker::PhantomData, usize};
 
-use nalgebra::{ComplexField, SMatrix};
+use nalgebra::{ComplexField, RealField, SMatrix};
 
 use crate::{real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes}};
 
 #[derive(Debug)]
-pub struct FilterKalmanLinearComplex<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
+pub struct FilterKalmanLinearComplex<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
+where
+    TimeStepType: RealField
+{
     /// `STATE_DIM` x `1`
     pub state_vector : SMatrix<T, STATE_DIM, 1>,
     /// `STATE_DIM` x `STATE_DIM`
@@ -16,31 +19,32 @@ pub struct FilterKalmanLinearComplex<T, const STATE_DIM : usize, const MEASURE_D
     pub measure_covariance : SMatrix<T, MEASURE_DIM, MEASURE_DIM>,
 
     /// `STATE_DIM` x `STATE_DIM`
-    pub state_transition : SMatrixTimes<T, STATE_DIM, STATE_DIM>,
+    pub state_transition : SMatrixTimes<T, TimeStepType, STATE_DIM, STATE_DIM>,
     /// `STATE_DIM` x `CONTROL_DIM`
-    pub control : Option<SMatrixTimes<T, STATE_DIM, CONTROL_DIM>>,
+    pub control : Option<SMatrixTimes<T, TimeStepType, STATE_DIM, CONTROL_DIM>>,
     /// `STATE_DIM` x `STATE_DIM`
-    pub process_noise_covariance : Option<SMatrixTimes<T, STATE_DIM, STATE_DIM>>,
+    pub process_noise_covariance : Option<SMatrixTimes<T, TimeStepType, STATE_DIM, STATE_DIM>>,
 }
 
-impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinearComplex<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinearComplex<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: ComplexField + Copy + Clone
+    T: ComplexField + Copy + Clone + From<TimeStepType>,
+    TimeStepType: RealField + Copy + Clone
 {
-    pub fn init(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
+    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
-    pub fn predict(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
+    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
-    fn predict_internal(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
+    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
         // handle needed changes regarding dynamically changing values in the matrices
         let state_transition = if let Some(delta_time) = input.delta_time {
             self.state_transition.multiply_entries_complex(delta_time)
@@ -87,14 +91,15 @@ where
     }
 }
 
-impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
-    RealTimeSignalProcessor<&KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
-    for
-    FilterKalmanLinearComplex<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
+    RealTimeSignalProcessor<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
+for
+    FilterKalmanLinearComplex<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: ComplexField + Copy + Clone
+    TimeStepType: RealField + Copy + Clone,
+    T: ComplexField + Copy + Clone + From<TimeStepType>
 {
-    fn process_sample(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
+    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
         
         // Prediction
 
