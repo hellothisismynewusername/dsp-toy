@@ -7,10 +7,12 @@ pub mod cdylib;
 
 #[cfg(test)]
 mod kalman_tests {
-    use litemap::LiteMap;
+    use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+
+use litemap::LiteMap;
     use nalgebra::{Complex, ComplexField, SMatrix};
 
-    use crate::{real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex}, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
+    use crate::{math::normalize_angle, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex, kalman_unscented::FilterKalmanUnscented, sigma_points_functions::julier::Julier}, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
 
     #[test]
     /// Values for this example were taken from https://kalmanfilter.net/kalman1d_pn.html#:~:text=EXAMPLE%206%20%E2%80%93%20ESTIMATING%20THE%20TEMPERATURE%20OF%20THE%20LIQUID%20IN%20A%20TANK
@@ -391,6 +393,113 @@ mod kalman_tests {
         let final_estimate_im = final_estimate[(0, 0)].imaginary();
         assert_eq!(0.45, round_to_place(final_estimate_re, 2));
         assert_eq!(-0.95, round_to_place(final_estimate_im, 2));
+    }
+
+    /// Adapted from example "Robot Localization - A Fully Worked Example" from https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb
+    #[test]
+    fn unscented_kalman_test() {
+        assert_eq!(equality_accuracy(), 2);
+
+        let print = false;
+
+        const WHEELBASE : f64 = 3.; //TODO
+        const NUM_BEARINGS : usize = 3;
+
+        const STATE_DIM : usize = 3;
+        const N_OUT : usize = STATE_DIM * 2 + 1;
+        const MEASURE_DIM : usize = NUM_BEARINGS * 2;
+        const CONTROL_DIM : usize = 2;
+
+        // Must be of length `NUM_BEARINGS`
+        let landmarks = [
+            (1., 0.),
+            (0., 1.)
+        ];
+
+
+        // todo bien a dios
+        let init_state_vector = SMatrix::<f64, STATE_DIM, 1>::zeros();
+        let init_estimate_covariance = SMatrix::<f64, STATE_DIM, STATE_DIM>::zeros();
+        let measure_covariance = SMatrix::<f64, MEASURE_DIM, MEASURE_DIM>::zeros();
+        let process_noise_covariance = Some(SMatrixTimes::<f64, f64, STATE_DIM, STATE_DIM>::new(SMatrix::zeros(), 0));
+
+        let state_transition_function = move |state : SMatrix<f64, STATE_DIM, 1>, time_step : f64, control_o : Option<SMatrix<f64, CONTROL_DIM, 1>>| {
+            let curr_angle = state[2];
+            
+            if let Some(control) = control_o {
+                let vel = control[0];
+                let steer_angle = state[1];
+                let dist = vel * time_step; // euler method
+
+                if steer_angle > 0.001 {
+                    let beta = (dist / WHEELBASE) * steer_angle.tan();
+                    let turn_radius = WHEELBASE / steer_angle.tan();
+
+                    let (sinh, sinhb) = (curr_angle.sin(), (curr_angle + beta).sin());
+                    let (cosh, coshb) = (curr_angle.sin(), (curr_angle + beta).cos());
+                    state + SMatrix::<f64, STATE_DIM, 1>::new(
+                        turn_radius * sinhb - turn_radius * sinh,
+                        turn_radius * cosh - turn_radius * coshb,
+                        beta
+                    )
+                } else {
+                    state + SMatrix::<f64, STATE_DIM, 1>::new(
+                        dist * curr_angle.cos(),
+                        dist * curr_angle.sin(),
+                        0.
+                    )
+                }
+            } else {
+                panic!("Impossible") // using control for this example
+            }
+        };
+
+        // measurmeent
+        let residual_h = |a : SMatrix<f64, MEASURE_DIM, 1>, b : SMatrix<f64, MEASURE_DIM, 1>| {
+            let mut residual = a - b;
+            for i in (0..residual.len()).step_by(2) {
+                residual[i + 1] = normalize_angle(residual[i + 1]);
+            }
+            residual
+        };
+        // state
+        let residual_x = |a : SMatrix<f64, STATE_DIM, 1>, b : SMatrix<f64, STATE_DIM, 1>| {
+            let mut residual = a - b;
+            residual[2] = normalize_angle(residual[2]);
+            residual
+        };
+
+        assert_eq!(landmarks.len(), NUM_BEARINGS);
+
+        // take a state variable and return the measurement that would correspond to that state.
+        let observation_function = |state : SMatrix<f64, STATE_DIM, 1>| {
+            let mut out = SMatrix::<f64, MEASURE_DIM, 1>::zeros();
+
+            for (i, (px, py)) in landmarks.iter().enumerate() {
+                let dist = ((px - state[0]).powi(2) + (py - state[1]).powi(2)).sqrt();
+                let angle = (py - state[1]).atan2(px - state[0]);
+                out[2 * i] = dist;
+                out[2 * i + 1] = normalize_angle(angle - state[2]);
+            }
+
+            out
+        };
+
+        let filter =
+            FilterKalmanUnscented::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, _, _, Julier<f64, STATE_DIM, N_OUT>, _, _, _, _, _> {
+                state_vector: init_state_vector,
+                estimate_covariance: init_estimate_covariance,
+                measure_covariance: measure_covariance,
+                process_noise_covariance: process_noise_covariance,
+                observation: observation_function,
+                state_transition: state_transition_function,
+                sigma_generator_function: Julier::new(0.),
+                state_mean_function: todo!(),
+                measure_mean_function: todo!(),
+                residual_z_function: todo!(),
+                residual_x_function: todo!(),
+                add_state_function: todo!(),
+        };
     }
 }
 

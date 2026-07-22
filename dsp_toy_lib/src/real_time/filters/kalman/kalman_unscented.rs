@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use nalgebra::{RealField, SMatrix};
+use nalgebra::{Const, MatrixView, RealField, SMatrix};
 
 use crate::{real_time::{filters::kalman::{kalman_input::KalmanInput, sigma_points_functions::sigma_points_function::SigmaPointsFunction}, real_time_signal_processer::RealTimeSignalProcessor}, utility::SMatrixTimes};
 
@@ -8,12 +8,19 @@ use crate::{real_time::{filters::kalman::{kalman_input::KalmanInput, sigma_point
 /// 
 /// So, user will have to add their own custom behaviours to the state transition function, but `T` is still passed in as a time variable.
 /// This is to uphold the passed-in `delta_time` from `KalmanInput`.
-pub struct FilterKalmanUnscented<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction>
+/// 
+/// To do controlling in state transition function aside from the optional control input, you could use an `Rc<RefCell<T>>` pattern.
+pub struct FilterKalmanUnscented<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction, FStateMean, FMeasureMean, FResidualZ, FResidualX, FAddX>
 where 
     TimeStepType: RealField,
-    FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
+    FStateTransition: FnMut(SMatrix<T, STATE_DIM, 1>, TimeStepType, Option<SMatrix<T, CONTROL_DIM, 1>>) -> SMatrix<T, STATE_DIM, 1>,
     FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
-    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
+    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>,
+    FStateMean: Fn([SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, STATE_DIM, 1>,
+    FMeasureMean: Fn([SMatrix<T, MEASURE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualZ: Fn(SMatrix<T, MEASURE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualX: Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>,
+    FAddX: Fn(SMatrix<T, STATE_DIM, 1>, MatrixView<'_, T, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>) -> SMatrix<T, STATE_DIM, 1> + Copy
 {
     /// `STATE_DIM` x `1`
     pub state_vector : SMatrix<T, STATE_DIM, 1>,
@@ -30,20 +37,34 @@ where
     pub observation : FObservation,
     /// State transition function (Vector of size `STATE_DIM`, `TimeStepType`) -> Vector of size `STATE_DIM`
     pub state_transition : FStateTransition,
-
-    /// Sigma points generator function
-    pub sigma_points_function : FSigmaPointsFunction,
+    /// Sigma Generator Function
+    pub sigma_generator_function: FSigmaPointsFunction,
+    /// Weighted average function. State sigma points vectors[], Mean weights[] -> Mean state vector
+    pub state_mean_function : FStateMean,
+    /// Weighted average function. Measurement sigma point vectors[], Mean weights[] -> Mean measurement vector
+    pub measure_mean_function : FMeasureMean,
+    /// `Fn(SMatrix<T, MEASURE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>`
+    pub residual_z_function : FResidualZ,
+    /// `Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>`
+    pub residual_x_function : FResidualX,
+    /// Function to add to state, to, for example, allow for custom wraparound logic if needed. `bool` parameter is `true` if subtraction is being done.
+    pub add_state_function: FAddX
 }
 
 /// Real-only (`T` impl `RealField`)
-impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction>
-    FilterKalmanUnscented<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, FStateTransition, FObservation, FSigmaPointsFunction>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction, FStateMean, FMeasureMean, FResidualZ, FResidualX, FAddX>
+    FilterKalmanUnscented<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, FStateTransition, FObservation, FSigmaPointsFunction, FStateMean, FMeasureMean, FResidualZ, FResidualX, FAddX>
 where
-    TimeStepType: RealField + Copy + Clone + From<usize>,
+    TimeStepType: RealField + Copy + Clone,
     T: RealField + Copy + Clone + From<TimeStepType>,
-    FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
+    FStateTransition: FnMut(SMatrix<T, STATE_DIM, 1>, TimeStepType, Option<SMatrix<T, CONTROL_DIM, 1>>) -> SMatrix<T, STATE_DIM, 1>,
     FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
-    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
+    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>,
+    FStateMean: Fn([SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, STATE_DIM, 1>,
+    FMeasureMean: Fn([SMatrix<T, MEASURE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualZ: Fn(SMatrix<T, MEASURE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualX: Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>,
+    FAddX: Fn(SMatrix<T, STATE_DIM, 1>, MatrixView<'_, T, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>) -> SMatrix<T, STATE_DIM, 1> + Copy
 {
     pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance, _, _ , _) = self.predict_internal(input);
@@ -74,57 +95,65 @@ where
             None
         };
 
-        let sigmas = self.sigma_points_function.generate_sigma_points();
-        let weights_mean = self.sigma_points_function.generate_weights_mean();
-        let weights_covariance = self.sigma_points_function.generate_weights_covariance();
+        let sigmas = self.sigma_generator_function.generate_sigma_points(self.state_vector, self.estimate_covariance, self.add_state_function);
+        let w_m = self.sigma_generator_function.generate_w_m();
+        let w_c = self.sigma_generator_function.generate_w_c();
 
         let time_step = if input.delta_time.is_some() {
             input.delta_time.unwrap()
         } else {
-            TimeStepType::from(1)
+            TimeStepType::from_usize(1).unwrap()
         };
         
-        let new_sigmas : [SMatrix<T, STATE_DIM, 1>; N_OUT] = sigmas.map(|sigma| (self.state_transition)(sigma, time_step));
+        let new_sigmas : [SMatrix<T, STATE_DIM, 1>; N_OUT] = sigmas.map(|sigma| (self.state_transition)(sigma, time_step, input.control_vector));
 
         // intellisense seems to have trouble with .sum() with the matrices
-        let new_state = weights_mean
-            .iter()
-            .zip(new_sigmas)
-            .map(|(w, s)| s * *w)
-            .fold(SMatrix::zeros(), |acc, val| acc + val);
+        // let new_state = w_m
+        //     .iter()
+        //     .zip(new_sigmas)
+        //     .map(|(w, s)| s * *w)
+        //     .fold(SMatrix::zeros(), |acc, val| acc + val);
+        let new_state = (self.state_mean_function)(new_sigmas, w_m);
 
         let new_estimate_covariance = if let Some(process_noise_covariance) = process_noise_covariance_o {
-            process_noise_covariance + weights_covariance.iter().zip(new_sigmas).map(|(w, s)| {
-                (s - new_state) * (s - new_state).transpose() * *w
+            process_noise_covariance + w_c.iter().zip(new_sigmas).map(|(w, s)| {
+                let res = (self.residual_x_function)(s, new_state);
+                res * res.transpose() * *w
             })
             .fold(SMatrix::zeros(), |acc, val| acc + val)
         } else {
-            weights_covariance.iter().zip(new_sigmas).map(|(w, s)| {
-                (s - new_state) * (s - new_state).transpose() * *w
+            w_c.iter().zip(new_sigmas).map(|(w, s)| {
+                let res = (self.residual_x_function)(s, new_state);
+                res * res.transpose() * *w
             })
             .fold(SMatrix::zeros(), |acc, val| acc + val)
         };
 
-        (new_state, new_estimate_covariance, new_sigmas, weights_mean, weights_covariance)
+        (new_state, new_estimate_covariance, new_sigmas, w_m, w_c)
     }
 }
 
-impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize, const N_OUT : usize, FStateTransition, FObservation, FSigmaPointsFunction, FStateMean, FMeasureMean, FResidualZ, FResidualX, FAddX>
     RealTimeSignalProcessor<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
 for
-    FilterKalmanUnscented<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, FStateTransition, FObservation, FSigmaPointsFunction>
+    FilterKalmanUnscented<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, FStateTransition, FObservation, FSigmaPointsFunction, FStateMean, FMeasureMean, FResidualZ, FResidualX, FAddX>
 where 
-    TimeStepType: RealField + Copy + Clone + From<usize>,
+    TimeStepType: RealField + Copy + Clone,
     T: RealField + Copy + Clone + From<TimeStepType>,
-    FStateTransition: Fn(SMatrix<T, STATE_DIM, 1>, TimeStepType) -> SMatrix<T, STATE_DIM, 1>,
+    FStateTransition: FnMut(SMatrix<T, STATE_DIM, 1>, TimeStepType, Option<SMatrix<T, CONTROL_DIM, 1>>) -> SMatrix<T, STATE_DIM, 1>,
     FObservation: Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
-    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
+    FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>,
+    FStateMean: Fn([SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, STATE_DIM, 1>,
+    FMeasureMean: Fn([SMatrix<T, MEASURE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualZ: Fn(SMatrix<T, MEASURE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>,
+    FResidualX: Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>,
+    FAddX: Fn(SMatrix<T, STATE_DIM, 1>, MatrixView<'_, T, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>) -> SMatrix<T, STATE_DIM, 1> + Copy
 {
     fn process_sample(&mut self, inp : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
         
         // Prediction
 
-        let (state, estimate_covariance, sigmas, weights_mean, weights_covariance) = self.predict_internal(&inp);
+        let (state, estimate_covariance, sigmas, w_m, w_c) = self.predict_internal(&inp);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
 
@@ -132,29 +161,33 @@ where
 
         let measurement_sigmas = sigmas.map(|s| (self.observation)(s));
 
-        let mean_measurement = weights_mean
-            .iter()
-            .zip(measurement_sigmas)
-            .map(|(w, s)| s * *w)
-            .fold(SMatrix::zeros(), |acc, val| acc + val);
+        // let mean_measurement = w_m
+        //     .iter()
+        //     .zip(measurement_sigmas)
+        //     .map(|(w, s)| s * *w)
+        //     .fold(SMatrix::zeros(), |acc, val| acc + val);
+        let mean_measurement = (self.measure_mean_function)(measurement_sigmas, w_m);
 
-        let mut covariance_measurement = self.measure_covariance + weights_covariance
+        let mut covariance_measurement = self.measure_covariance + w_c
             .iter()
             .zip(measurement_sigmas)
             .map(|(w, s)| {
-                (s - mean_measurement) * (s - mean_measurement).transpose() * *w
+                let res = (self.residual_z_function)(s, mean_measurement);
+                res * res.transpose() * *w
             })
             .fold(SMatrix::zeros(), |acc, val| acc + val);
 
-        let residual = inp.measurement_vector - mean_measurement;
+        let innovation = (self.residual_z_function)(inp.measurement_vector, mean_measurement);
 
         // compute cross covariance of state and measurement
-        let cross_covariance = weights_covariance
+        let cross_covariance = w_c
             .iter()
             .zip(sigmas)
             .zip(measurement_sigmas)
             .map(|((w, s_y), s_z)| {
-                (s_y - state) * (s_z - mean_measurement).transpose() * *w
+                let res_x = (self.residual_x_function)(s_y, state);
+                let res_z = (self.residual_z_function)(s_z, mean_measurement);
+                res_x * res_z.transpose() * *w
             })
             .fold(SMatrix::zeros(), |acc, val| acc + val);
 
@@ -164,10 +197,11 @@ where
 
         let kalman_gain = cross_covariance * covariance_measurement;
 
-        let updated_state = state + kalman_gain * residual;
+        let updated_state = (self.add_state_function)(state, (kalman_gain * innovation).as_view());
         self.state_vector = updated_state;
 
-        let updated_estimate_covariance = estimate_covariance - kalman_gain * covariance_measurement * kalman_gain.transpose();
+        // K * P_z = P_xz, substitute in to fix the mutated P_z problem
+        let updated_estimate_covariance = estimate_covariance - cross_covariance * kalman_gain.transpose();
 
         self.estimate_covariance = updated_estimate_covariance;
 

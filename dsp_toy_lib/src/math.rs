@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use nalgebra::{Complex, ComplexField, SMatrix};
+use nalgebra::{Complex, ComplexField, RealField, SMatrix, convert};
 
 use crate::{consts::{BLACKMAN_WINDOW_C_0, BLACKMAN_WINDOWS_C_1, BLACKMAN_WINDOWS_C_2, EULER, HAMMING_WINDOW_C_0, HAMMING_WINDOW_C_1}, utility::j};
 
@@ -229,4 +229,30 @@ pub fn rectangular(_ : usize, _ : usize) -> f64 {
 
 pub fn blackman(n : usize, len : usize) -> f64 {
     BLACKMAN_WINDOW_C_0 - BLACKMAN_WINDOWS_C_1 * ((2. * PI * n as f64) / len as f64).cos() + BLACKMAN_WINDOWS_C_2 * ((4. * PI * n as f64) / len as f64).cos()
+}
+
+
+// ----------- MISC.
+
+
+pub fn normalize_angle<T>(inp : T) -> T 
+where 
+    T: RealField + Copy
+{
+    let tmp = inp % (T::from_f64(2.).unwrap() * T::pi());
+    if tmp > T::pi() {
+        tmp - T::two_pi()
+    } else {
+        tmp
+    }
+}
+
+pub fn circular_mean<T>(angles : &[T]) -> T
+where 
+    T: RealField + Copy
+{
+    let sin_avg : T = angles.iter().map(|x| x.sin()).fold(T::zero(), |acc, x| acc + x);
+    let cos_avg : T = angles.iter().map(|x| x.cos()).fold(T::zero(), |acc, x| acc + x);
+
+    sin_avg.atan2(cos_avg)
 }
