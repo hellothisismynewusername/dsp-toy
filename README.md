@@ -1,9 +1,9 @@
 # dsp-toy
 
-A small, highly unprofessional WIP library for DSP, with simple functionalities for DFT, FFT, STFT, FIR/IIR filtering, Multivariate Linear Kalman filtering, and other digital signal-related stuff.  
+A small, highly unprofessional WIP library for DSP, with simple functionalities for DFT, FFT, STFT, FIR/IIR filtering, Multivariate Linear/Unscented Kalman filtering, and other digital signal-related stuff.  
 Provided is a `Signal` struct for owning and easily handling signal data, particularily through usage of the builder pattern (function chaining).  
 Also present are real-time filters that implement `RealTimeSignalProcessor`.  
-This project's purpose is for learning, so efficiency, ergonomics, and thourough testing weren't prioritized.
+This project's purpose is for learning, so efficiency was not prioritized.
 
 
 ## Requirements
@@ -25,14 +25,19 @@ dsp_toy_lib = { git = "https://github.com/hellothisismynewusername/dsp-toy.git",
 ```
 (Or whatever my username is currently)
 
-Then make a `dsp_toy_lib::signal::Signal` using `Signal::from()` (array, slice, or iterator).
-
 ### Non-Rust
 
-C ABI compatible structs and functions are found in `dsp_toy_lib/src/cdylib_stuff.rs`. Currently only supports `FilterIIRPeakBell_f64`.
+C ABI compatible structs and functions are found in `dsp_toy_lib/src/cdylib.rs` and `dsp_toy_lib/src/real_time/cdylib`.
+Currently only supports `Signal`, `FilterIIRPeakBell_f64`, and FT functions; no Kalman Filtering.
 
 To use the library as a cdylib, build the library with `cargo build -p dsp_toy_lib --release` and make headers with `cbindgen`.
 
 --- 
 
 For demos of what you can do with this library, see tests in `dsp_toy_lib/src/lib.rs`, foreign examples in `examples`, and code in the `dsp_toy` binary.
+
+### Notable Structs
+- `FilterKalmanLinear`, `FilterKalmanLinearComplex`, `FilterKalmanUnscented` - Kalman Filtering, real-time.
+- `Julier` - Sigma points generator function, for KF.
+- `Signal` - Offline processing, implements several FT-related functionalities.
+- `FilterIIRPeakBell` - EQing-like filtering, real-time.
