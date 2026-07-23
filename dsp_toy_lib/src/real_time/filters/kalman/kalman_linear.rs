@@ -1,10 +1,10 @@
-use std::usize;
+use std::{usize};
 
 use nalgebra::{RealField, SMatrix};
 
 use crate::{real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes}};
 
-pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
+pub struct FilterKalmanLinear<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
     /// `STATE_DIM` x `1`
     pub state_vector : SMatrix<T, STATE_DIM, 1>,
     /// `STATE_DIM` x `STATE_DIM`
@@ -15,32 +15,33 @@ pub struct FilterKalmanLinear<T, const STATE_DIM : usize, const MEASURE_DIM : us
     pub measure_covariance : SMatrix<T, MEASURE_DIM, MEASURE_DIM>,
 
     /// `STATE_DIM` x `STATE_DIM`
-    pub state_transition : SMatrixTimes<T, STATE_DIM, STATE_DIM>,
+    pub state_transition : SMatrixTimes<T, TimeStepType, STATE_DIM, STATE_DIM>,
     /// `STATE_DIM` x `CONTROL_DIM`
-    pub control : Option<SMatrixTimes<T, STATE_DIM, CONTROL_DIM>>,
+    pub control : Option<SMatrixTimes<T, TimeStepType, STATE_DIM, CONTROL_DIM>>,
     /// `STATE_DIM` x `STATE_DIM`
-    pub process_noise_covariance : Option<SMatrixTimes<T, STATE_DIM, STATE_DIM>>,
+    pub process_noise_covariance : Option<SMatrixTimes<T, TimeStepType, STATE_DIM, STATE_DIM>>,
 }
 
 // This is for when T is integer or floating point. Not Complex. An int-only version can be made, which would in theory have a better performance than this.
-impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> FilterKalmanLinear<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: RealField + Copy + Clone
+    TimeStepType: RealField + Copy + Clone,
+    T: RealField + Copy + Clone + From<TimeStepType>
 {
-    pub fn init(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
+    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
-    pub fn predict(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
+    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
         let (state, estimate_covariance) = self.predict_internal(input);
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
-    fn predict_internal(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
+    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
         // handle needed changes regarding dynamically changing values in the matrices
         let state_transition = if let Some(delta_time) = input.delta_time {
             self.state_transition.multiply_entries_float(delta_time)
@@ -87,14 +88,15 @@ where
     }
 }
 
-impl<T, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
-    RealTimeSignalProcessor<&KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
-    for
-    FilterKalmanLinear<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
+impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
+    RealTimeSignalProcessor<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
+for
+    FilterKalmanLinear<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
-    T: RealField + Copy + Clone
+    TimeStepType: RealField + Copy + Clone,
+    T: RealField + Copy + Clone + From<TimeStepType>
 {
-    fn process_sample(&mut self, input : &KalmanInput<T, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
+    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
         
         // Prediction
 
