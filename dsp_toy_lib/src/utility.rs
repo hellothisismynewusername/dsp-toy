@@ -1,7 +1,5 @@
-use std::ops::Mul;
-
 use litemap::LiteMap;
-use nalgebra::{Complex, ComplexField, DMatrix, RealField, SMatrix};
+use nalgebra::{Complex, ComplexField, RealField, SMatrix};
 
 use crate::consts::EQUALITY_ACCURACY;
 

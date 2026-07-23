@@ -7,10 +7,12 @@ pub mod cdylib;
 
 #[cfg(test)]
 mod kalman_tests {
-    use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use litemap::LiteMap;
-    use nalgebra::{Complex, ComplexField, SMatrix};
+    use litemap::LiteMap;
+    use nalgebra::{Complex, ComplexField, Const, MatrixView, SMatrix, Vector3, Vector6};
+    use rand::{SeedableRng, distr::Distribution};
+    use rand_chacha::ChaCha8Rng;
+    use rand_distr::StandardNormal;
 
     use crate::{math::normalize_angle, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex, kalman_unscented::FilterKalmanUnscented, sigma_points_functions::julier::Julier}, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
 
@@ -58,7 +60,7 @@ use litemap::LiteMap;
             }
         }
 
-        assert_eq!(50.00, round_to_place(final_val, 2));
+        assert_eq!(50.00, round_to_place(final_val, equality_accuracy()));
     }
 
     /// Multivariate Linear Kalman test: A drone that captures its x and y position periodically and is controlled.
@@ -241,7 +243,7 @@ use litemap::LiteMap;
                 println!("Calculated estimate at {}: {:?}", i, tmp);
             }
         }
-        assert_eq!(12.98, round_to_place(final_estimate[(0, 0)], 2));
+        assert_eq!(12.98, round_to_place(final_estimate[(0, 0)], equality_accuracy()));
     }
 
     /// Complex linear Kalman filter test: tracks a rotating complex I/Q phasor.
@@ -391,52 +393,68 @@ use litemap::LiteMap;
         }
         let final_estimate_re = final_estimate[(0, 0)].real();
         let final_estimate_im = final_estimate[(0, 0)].imaginary();
-        assert_eq!(0.45, round_to_place(final_estimate_re, 2));
-        assert_eq!(-0.95, round_to_place(final_estimate_im, 2));
+        assert_eq!(0.45, round_to_place(final_estimate_re, equality_accuracy()));
+        assert_eq!(-0.95, round_to_place(final_estimate_im, equality_accuracy()));
     }
 
-    /// Adapted from example "Robot Localization - A Fully Worked Example" from https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb
+    /// Adapted from first run example "Robot Localization - A Fully Worked Example" from https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/10-Unscented-Kalman-Filter.ipynb
+    /// 
+    /// Due to the deterministic random number generation used, the loop is far from "blazingly fast".
+    /// 
+    /// This is almost entirely not the fault of the filter though; it runs much faster without such rng.
     #[test]
     fn unscented_kalman_test() {
         assert_eq!(equality_accuracy(), 2);
 
         let print = false;
 
-        const WHEELBASE : f64 = 3.; //TODO
+        const WHEELBASE : f64 = 0.5;
         const NUM_BEARINGS : usize = 3;
 
         const STATE_DIM : usize = 3;
-        const N_OUT : usize = STATE_DIM * 2 + 1;
+        const N_OUT : usize = STATE_DIM * 2 + 1; // aka number of sigma points
         const MEASURE_DIM : usize = NUM_BEARINGS * 2;
         const CONTROL_DIM : usize = 2;
+        const TIME_STEP : f64 = 1.; // frequency of running full predict/correct UKF step
+        const SIM_STEP : f64 = 0.1; // frequency of updating simulated robot position
+
+        const SIGMA_RANGE : f64 = 0.3;
+        const SIGMA_BEARING : f64 = 0.1;
+        const MAGIC_NUMBER : f64 = 0.0001; // used in Q
 
         // Must be of length `NUM_BEARINGS`
         let landmarks = [
-            (1., 0.),
-            (0., 1.)
+            (5., 10.),
+            (10., 5.),
+            (15., 15.)
         ];
 
-
-        // todo bien a dios
-        let init_state_vector = SMatrix::<f64, STATE_DIM, 1>::zeros();
-        let init_estimate_covariance = SMatrix::<f64, STATE_DIM, STATE_DIM>::zeros();
-        let measure_covariance = SMatrix::<f64, MEASURE_DIM, MEASURE_DIM>::zeros();
-        let process_noise_covariance = Some(SMatrixTimes::<f64, f64, STATE_DIM, STATE_DIM>::new(SMatrix::zeros(), 0));
+        let init_state_vector =
+            SMatrix::<f64, STATE_DIM, 1>::new(2., 6., 0.3);
+        let init_estimate_covariance =
+            SMatrix::<f64, STATE_DIM, STATE_DIM>::from_diagonal(&Vector3::new(0.1, 0.1, 0.05));
+        let measure_covariance =
+            SMatrix::<f64, MEASURE_DIM, MEASURE_DIM>::from_diagonal(
+                &Vector6::from_column_slice(&[SIGMA_RANGE.powi(2), SIGMA_BEARING.powi(2)].repeat(NUM_BEARINGS))
+            );
+        let process_noise_covariance = Some(
+            SMatrixTimes::<f64, f64, STATE_DIM, STATE_DIM>::new(SMatrix::identity() * MAGIC_NUMBER, 0)
+        );
 
         let state_transition_function = move |state : SMatrix<f64, STATE_DIM, 1>, time_step : f64, control_o : Option<SMatrix<f64, CONTROL_DIM, 1>>| {
             let curr_angle = state[2];
             
             if let Some(control) = control_o {
                 let vel = control[0];
-                let steer_angle = state[1];
+                let steer_angle = control[1];
                 let dist = vel * time_step; // euler method
 
-                if steer_angle > 0.001 {
+                if steer_angle.abs() > 0.001 {
                     let beta = (dist / WHEELBASE) * steer_angle.tan();
                     let turn_radius = WHEELBASE / steer_angle.tan();
 
                     let (sinh, sinhb) = (curr_angle.sin(), (curr_angle + beta).sin());
-                    let (cosh, coshb) = (curr_angle.sin(), (curr_angle + beta).cos());
+                    let (cosh, coshb) = (curr_angle.cos(), (curr_angle + beta).cos());
                     state + SMatrix::<f64, STATE_DIM, 1>::new(
                         turn_radius * sinhb - turn_radius * sinh,
                         turn_radius * cosh - turn_radius * coshb,
@@ -485,7 +503,70 @@ use litemap::LiteMap;
             out
         };
 
-        let filter =
+        let state_mean_function = |sigmas : [SMatrix<f64, STATE_DIM, 1>; N_OUT], weights : [f64; N_OUT]| {
+            let mut out = SMatrix::<f64, STATE_DIM, 1>::zeros();
+
+            let sum_sin = sigmas
+                .iter()
+                .zip(weights)
+                .map(|(sigma, weight)| sigma[2].sin() * weight)
+                .fold(0., |acc, x| acc + x);
+            let sum_cos = sigmas
+                .iter()
+                .zip(weights)
+                .map(|(sigma, weight)| sigma[2].cos() * weight)
+                .fold(0., |acc, x| acc + x);
+
+            out[0] = sigmas
+                .iter()
+                .zip(weights)
+                .map(|(sigma, weight)| sigma[0] * weight)
+                .fold(0., |acc, x| acc + x);
+            out[1] = sigmas
+                .iter()
+                .zip(weights)
+                .map(|(sigma, weight)| sigma[1] * weight)
+                .fold(0., |acc, x| acc + x);
+            out[2] = sum_sin.atan2(sum_cos);
+
+            out
+        };
+
+        let measure_mean_function = |sigmas : [SMatrix<f64, MEASURE_DIM, 1>; N_OUT], weights : [f64; N_OUT]| {
+            let mut out = SMatrix::<f64, MEASURE_DIM, 1>::zeros();
+
+            for i in (0..MEASURE_DIM).step_by(2) {
+                let sum_sin = sigmas
+                    .iter()
+                    .zip(weights)
+                    .map(|(sigma, weight)| sigma[i + 1].sin() * weight)
+                    .fold(0., |acc, x| acc + x);
+                let sum_cos = sigmas
+                    .iter()
+                    .zip(weights)
+                    .map(|(sigma, weight)| sigma[i + 1].cos() * weight)
+                    .fold(0., |acc, x| acc + x);
+
+                out[i] = sigmas
+                    .iter()
+                    .zip(weights)
+                    .map(|(sigma, weight)| sigma[i] * weight)
+                    .fold(0., |acc, x| acc + x);
+                out[i + 1] = sum_sin.atan2(sum_cos);
+            }
+
+            out
+        };
+
+        let add_state_function = |a : SMatrix<f64, STATE_DIM, 1>, b : MatrixView<'_, f64, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>| {
+            SMatrix::<f64, STATE_DIM, 1>::new(
+                a[0] + b[0],
+                a[1] + b[1],
+                normalize_angle(a[2] + b[2])
+            )
+        };
+
+        let mut filter =
             FilterKalmanUnscented::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM, N_OUT, _, _, Julier<f64, STATE_DIM, N_OUT>, _, _, _, _, _> {
                 state_vector: init_state_vector,
                 estimate_covariance: init_estimate_covariance,
@@ -494,12 +575,65 @@ use litemap::LiteMap;
                 observation: observation_function,
                 state_transition: state_transition_function,
                 sigma_generator_function: Julier::new(0.),
-                state_mean_function: todo!(),
-                measure_mean_function: todo!(),
-                residual_z_function: todo!(),
-                residual_x_function: todo!(),
-                add_state_function: todo!(),
+                state_mean_function: state_mean_function,
+                measure_mean_function: measure_mean_function,
+                residual_z_function: residual_h,
+                residual_x_function: residual_x,
+                add_state_function: add_state_function
         };
+
+        let commands = [
+            SMatrix::<f64, CONTROL_DIM, 1>::new(1.1, 0.01)
+        ].repeat(200);
+
+        let mut sim_pos = init_state_vector;
+
+        let mut rng = ChaCha8Rng::seed_from_u64(67);
+
+        let mut final_estimate = None;
+
+        // The author of the original first robot example did include a `sigma_steer`, but I think they didn't actually use it.
+        for (i, command) in commands.iter().enumerate() {
+            sim_pos = state_transition_function(sim_pos, SIM_STEP, Some(*command));
+
+            if print { println!("i = {}\tposition:\t{:?}", i, sim_pos); }
+
+            if (i + 1) % (TIME_STEP / SIM_STEP) as usize == 0 {
+                let mut measurement_vector = SMatrix::<f64, MEASURE_DIM, 1>::zeros();
+
+                for (j, landmark) in landmarks.iter().enumerate() {
+                    let (dx, dy) = (landmark.0 - sim_pos[0], landmark.1 - sim_pos[1]);
+
+                    let randomness : f64 = StandardNormal.sample(&mut rng);
+                    let dist = (dx.powi(2) + dy.powi(2)).sqrt() + randomness * SIGMA_RANGE;
+
+                    let randomness : f64 = StandardNormal.sample(&mut rng);
+                    let bearing = (landmark.1 - sim_pos[1]).atan2(landmark.0 - sim_pos[0]);
+                    let a = normalize_angle(bearing - sim_pos[2] + randomness * SIGMA_BEARING);
+
+                    measurement_vector[2 * j] = dist;
+                    measurement_vector[2 * j + 1] = a;
+                }
+
+                let processed = filter.process_sample(&KalmanInput::<f64, f64, STATE_DIM, MEASURE_DIM, CONTROL_DIM> {
+                    measurement_vector: measurement_vector,
+                    control_vector: Some(*command),
+                    process_noise_covariance: None,
+                    delta_time: Some(TIME_STEP), // not technically necessary since TIME_STEP = 1.
+                });
+
+                if print { println!("i = {}\tPROCESSED:\t{:?}", i, processed); }
+
+                if i == commands.len() - 1 {
+                    final_estimate = Some(processed);
+                }
+            }
+        }
+
+        assert!(final_estimate.is_some());
+        assert_eq!(21.06, round_to_place(final_estimate.unwrap()[0], equality_accuracy()));
+        assert_eq!(16.55, round_to_place(final_estimate.unwrap()[1], equality_accuracy()));
+        assert_eq!(0.68, round_to_place(final_estimate.unwrap()[2], equality_accuracy()));
     }
 }
 

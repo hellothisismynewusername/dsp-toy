@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use nalgebra::{Const, MatrixView, RealField, SMatrix};
 
 use crate::{real_time::{filters::kalman::{kalman_input::KalmanInput, sigma_points_functions::sigma_points_function::SigmaPointsFunction}, real_time_signal_processer::RealTimeSignalProcessor}, utility::SMatrixTimes};
@@ -39,15 +37,21 @@ where
     pub state_transition : FStateTransition,
     /// Sigma Generator Function
     pub sigma_generator_function: FSigmaPointsFunction,
-    /// Weighted average function. State sigma points vectors[], Mean weights[] -> Mean state vector
+    /// Weighted average function. State sigma points vectors[], Mean weights[] -> Mean state vector.
+    /// 
+    /// `Fn([SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, STATE_DIM, 1>`
     pub state_mean_function : FStateMean,
-    /// Weighted average function. Measurement sigma point vectors[], Mean weights[] -> Mean measurement vector
+    /// Weighted average function. Measurement sigma point vectors[], Mean weights[] -> Mean measurement vector.
+    /// 
+    /// `Fn([SMatrix<T, MEASURE_DIM, 1>; N_OUT], [T; N_OUT]) -> SMatrix<T, MEASURE_DIM, 1>`
     pub measure_mean_function : FMeasureMean,
     /// `Fn(SMatrix<T, MEASURE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>`
     pub residual_z_function : FResidualZ,
     /// `Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>`
     pub residual_x_function : FResidualX,
     /// Function to add to state, to, for example, allow for custom wraparound logic if needed. `bool` parameter is `true` if subtraction is being done.
+    /// 
+    /// `Fn(SMatrix<T, STATE_DIM, 1>, MatrixView<'_, T, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>) -> SMatrix<T, STATE_DIM, 1>`
     pub add_state_function: FAddX
 }
 

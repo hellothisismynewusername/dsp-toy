@@ -1,4 +1,4 @@
-use std::{clone, usize};
+use std::{usize};
 
 use nalgebra::{RealField, SMatrix};
 

@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, usize};
+use std::usize;
 
 use nalgebra::{ComplexField, RealField, SMatrix};
 

@@ -1,6 +1,6 @@
 use std::ops::Neg;
 
-use nalgebra::{ComplexField, Const, MatrixView, RealField, SMatrix, Scalar};
+use nalgebra::{ComplexField, Const, MatrixView, SMatrix};
 
 use crate::real_time::filters::kalman::sigma_points_functions::sigma_points_function::SigmaPointsFunction;
 
@@ -42,8 +42,8 @@ where
 
         // matrix_tmp is a lower triangle; use ith col instead of ith row
         for i in 0..STATE_DIM {
-            out[i] = state_add_function(state_distribution_mean_vector, matrix_tmp.column(i));
-            out[i + STATE_DIM] = state_add_function(state_distribution_mean_vector, matrix_tmp.column(i).neg().as_view());
+            out[i + 1] = state_add_function(state_distribution_mean_vector, matrix_tmp.column(i));
+            out[i + 1 + STATE_DIM] = state_add_function(state_distribution_mean_vector, matrix_tmp.column(i).neg().as_view());
         }
 
         out
