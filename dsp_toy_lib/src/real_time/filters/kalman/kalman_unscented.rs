@@ -165,11 +165,6 @@ where
 
         let measurement_sigmas = sigmas.map(|s| (self.observation)(s));
 
-        // let mean_measurement = w_m
-        //     .iter()
-        //     .zip(measurement_sigmas)
-        //     .map(|(w, s)| s * *w)
-        //     .fold(SMatrix::zeros(), |acc, val| acc + val);
         let mean_measurement = (self.measure_mean_function)(measurement_sigmas, w_m);
 
         let mut covariance_measurement = self.measure_covariance + w_c

@@ -3,7 +3,7 @@ use hound::{WavSpec, WavWriter};
 use num_complex::Complex;
 use rand::RngExt;
 
-fn do_the_thing() {
+fn _do_the_thing() {
     let mut rng = rand::rng();
     let mut rand_fn = |_ : usize| -> Complex<f64> {
         Complex::<f64>::from(rng.random_range::<f64, _>((-0.1)..(0.1)))
