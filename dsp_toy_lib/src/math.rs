@@ -239,9 +239,11 @@ pub fn normalize_angle<T>(inp : T) -> T
 where 
     T: RealField + Copy
 {
-    let tmp = inp % (T::from_f64(2.).unwrap() * T::pi());
+    let tmp = inp % (T::from_i8(2).unwrap() * T::pi());
     if tmp > T::pi() {
         tmp - T::two_pi()
+    } else if tmp < T::from_i8(-1).unwrap() * T::pi() {
+        tmp + T::two_pi()
     } else {
         tmp
     }
