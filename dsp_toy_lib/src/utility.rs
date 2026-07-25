@@ -60,7 +60,7 @@ where
     i32: From<MultiplierType>
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_int(&mut self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
+    pub fn multiply_entries_int(&self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
         if self.entry_multipliers_powers.is_none() {
             return self.matrix;
         }
@@ -100,7 +100,7 @@ where
     T: ComplexField + Copy + From<MultiplierType>,
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_complex(&mut self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
+    pub fn multiply_entries_complex(&self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
         if self.entry_multipliers_powers.is_none() {
             return self.matrix;
         }

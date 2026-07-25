@@ -50,18 +50,22 @@ where
         };
         let control_o = if self.control.is_some() {
             if let Some(delta_time) = input.delta_time {
-                Some(self.control.as_mut().unwrap().multiply_entries_float(delta_time))
+                Some(self.control.as_ref().unwrap().multiply_entries_float(delta_time))
             } else {
-                Some(self.control.as_mut().unwrap().matrix)
+                Some(self.control.as_ref().unwrap().matrix)
             }
         } else {
             None
         };
         let process_noise_covariance_o = if self.process_noise_covariance.is_some() {
-            if let Some(delta_time) = input.delta_time {
-                Some(self.process_noise_covariance.as_mut().unwrap().multiply_entries_float(delta_time))
+            if let Some(input_process_noise_covariance) = input.process_noise_covariance {
+                Some(input_process_noise_covariance)
             } else {
-                Some(self.process_noise_covariance.as_mut().unwrap().matrix)
+                if let Some(delta_time) = input.delta_time {
+                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_float(delta_time))
+                } else {
+                    Some(self.process_noise_covariance.as_ref().unwrap().matrix)
+                }
             }
         } else {
             None

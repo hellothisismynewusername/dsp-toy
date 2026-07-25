@@ -116,11 +116,6 @@ where
         let new_sigmas : [SMatrix<T, STATE_DIM, 1>; N_OUT] = sigmas.map(|sigma| (self.state_transition)(sigma, time_step, input.control_vector));
 
         // intellisense seems to have trouble with .sum() with the matrices
-        // let new_state = w_m
-        //     .iter()
-        //     .zip(new_sigmas)
-        //     .map(|(w, s)| s * *w)
-        //     .fold(SMatrix::zeros(), |acc, val| acc + val);
         let new_state = (self.state_mean_function)(new_sigmas, w_m);
 
         let new_estimate_covariance = if let Some(process_noise_covariance) = process_noise_covariance_o {
