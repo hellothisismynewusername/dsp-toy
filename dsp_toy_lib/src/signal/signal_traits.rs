@@ -33,7 +33,7 @@ impl IndexMut<Range<usize>> for Signal {
 
 impl<T> From<&[T]> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + From<i8> + Into<Complex::<f64>>,
+    T: Copy + Into<Complex::<f64>>,
     Complex::<f64>: From<T>
 {
     fn from(data: &[T]) -> Self {
@@ -44,7 +44,7 @@ where
 
 impl<T, const N : usize> From<[T; N]> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    T: Copy + Into<Complex::<f64>>,
     f64: From<T>
 {
     fn from(value: [T; N]) -> Self {
@@ -54,7 +54,7 @@ where
 
 impl<T> FromIterator<T> for Signal
 where 
-    T: Add<Output = T> + Sub<Output = T> + Copy + PartialOrd + From<i8> + Into<Complex::<f64>>,
+    T: Copy + Into<Complex::<f64>>,
     Complex::<f64>: From<T>
 {
     fn from_iter<A: IntoIterator<Item = T>>(iter: A) -> Self {
