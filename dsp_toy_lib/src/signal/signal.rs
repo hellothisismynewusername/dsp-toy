@@ -99,6 +99,51 @@ impl Signal {
         }
     }
 
+    /// Compute the cepstrum, discarding phase (saphe), using epsilon as a minimum value.
+    /// 
+    /// To be used on real signals.
+    pub fn real_cepstrum(self, epsilon : f64) -> Self {
+        let dft = if self.len().is_power_of_two() {
+            self.radix_2_fft().unwrap()
+        } else {
+            self.forward_dft()
+        };
+
+        let log_dft : Vec<f64> = dft.iter_complex().map(|x| {
+            ((x.real().powi(2) + x.imaginary().powi(2)).sqrt()).max(epsilon).ln()
+        }).collect();
+        let log_dft_signal = Self::from(log_dft.as_slice());
+
+        if log_dft_signal.len().is_power_of_two() {
+            log_dft_signal.inverse_radix_2_fft().unwrap()
+        } else {
+            log_dft_signal.inverse_dft()
+        }
+    }
+
+    /// Same as `real_cepstrum` but magnitude is squared before performing `ln`, and the final output is also squared.
+    pub fn power_cepstrum(self, epsilon : f64) -> Self {
+        let dft = if self.len().is_power_of_two() {
+            self.radix_2_fft().unwrap()
+        } else {
+            self.forward_dft()
+        };
+
+        let log_dft : Vec<f64> = dft.iter_complex().map(|x| {
+            ((x.real().powi(2) + x.imaginary().powi(2))).max(epsilon).ln()
+        }).collect();
+        let log_dft_signal = Self::from(log_dft.as_slice());
+
+        let inverted = if log_dft_signal.len().is_power_of_two() {
+            log_dft_signal.inverse_radix_2_fft().unwrap()
+        } else {
+            log_dft_signal.inverse_dft()
+        };
+
+        let exponentiated = inverted.iter_real().map(|x| x.powi(2)).collect::<Vec<f64>>();
+        Self::from(exponentiated.as_slice())
+    }
+
     pub fn zero_extend_start_and_end(self, num : usize) -> Self {
         let mut data_tmp : VecDeque<Complex<f64>> = self.data.into();
         for _ in 0..num {

@@ -29,7 +29,7 @@ dsp_toy_lib = { git = "https://github.com/hellothisismynewusername/dsp-toy.git",
 ### Non-Rust
 
 C ABI compatible structs and functions are found in [`dsp_toy_lib/src/cdylib.rs`](dsp_toy_lib/src/cdylib.rs) and [`dsp_toy_lib/src/real_time/cdylib.rs`](dsp_toy_lib/src/real_time/cdylib.rs).
-Currently only supports `Signal`, `FilterIIRPeakBell_f64`, and FT functions; no Kalman Filtering.
+Currently only supports `Signal`, `FilterIIRPeakBell_f64`, and DFT-related functions; no Kalman Filtering.
 
 To use the library as a cdylib, build the library with `cargo build -p dsp_toy_lib --release` and make headers with `cbindgen`.
 
