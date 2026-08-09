@@ -144,6 +144,32 @@ impl Signal {
         Self::from(exponentiated.as_slice())
     }
 
+    pub fn total_energy(&self) -> Complex<f64> {
+        self
+            .iter_complex()
+            .fold(Complex::ZERO, |acc, x| acc + x.powi(2))
+    }
+
+    pub fn average_power(&self) -> Complex<f64> {
+        self.total_energy() * (1. / self.len() as f64)
+    }
+
+    pub fn rms(&self) -> Complex<f64> {
+        self.average_power().sqrt()
+    }
+
+    pub fn euclidean_norm(&self) -> f64 {
+        math::l_norm(&self.data, 2)
+    }
+
+    pub fn sample_mean(&self) -> Complex<f64> {
+        math::sample_mean(&self.data)
+    }
+
+    pub fn sample_variance(&self) -> Complex<f64> {
+        math::sample_variance(&self.data)
+    }
+
     pub fn zero_extend_start_and_end(self, num : usize) -> Self {
         let mut data_tmp : VecDeque<Complex<f64>> = self.data.into();
         for _ in 0..num {

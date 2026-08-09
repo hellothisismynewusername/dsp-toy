@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use nalgebra::{Complex, RealField};
+use nalgebra::{Complex, ComplexField, RealField, SimdComplexField, convert, one, zero};
 
 use crate::{consts::{BLACKMAN_WINDOW_C_0, BLACKMAN_WINDOWS_C_1, BLACKMAN_WINDOWS_C_2, EULER, HAMMING_WINDOW_C_0, HAMMING_WINDOW_C_1}, utility::j};
 
@@ -246,5 +246,54 @@ where
         tmp + T::two_pi()
     } else {
         tmp
+    }
+}
+
+pub fn sample_mean<T>(inp : &[T]) -> T 
+where 
+    T: ComplexField + Copy
+{
+    let sum = inp
+        .iter()
+        .fold(T::zero(), |acc, x| acc + *x);
+
+    sum * T::from_f64(1. / inp.len() as f64).unwrap()
+}
+
+pub fn sample_variance<T>(inp : &[T]) -> T 
+where 
+    T: ComplexField + Copy
+{
+    let sample_mean = sample_mean(inp);
+    let sum = inp
+        .iter()
+        .map(|x| (*x - sample_mean).powi(2))
+        .fold(T::zero(), |acc, x| acc + x);
+    sum * T::from_f64(1. / inp.len() as f64).unwrap()
+}
+
+/// Computes the L_p norm of a vector `inp`. Returns integers.
+/// 
+/// When `p = 0`, returns number of non-negative entries.
+pub fn l_norm<T>(inp : &[T], p : usize) -> <T as ComplexField>::RealField
+where 
+    T: ComplexField + Copy
+{
+    if p == 0 {
+        inp
+            .iter()
+            .fold(zero(), |acc : <T as ComplexField>::RealField, x| {
+                if x.is_zero() {
+                    acc
+                } else {
+                    acc + one()
+                }
+            })
+    } else {
+        inp
+            .iter()
+            .map(|x| x.simd_modulus().powi(p as i32))
+            .fold(zero(), |acc : <T as ComplexField>::RealField, x| acc + x)
+            .simd_powf(convert(1. / p as f64))
     }
 }

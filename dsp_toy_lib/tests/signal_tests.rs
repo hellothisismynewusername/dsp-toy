@@ -224,4 +224,11 @@ mod tests {
 
         assert_eq!(signal * -2.5, Signal::from([-0.25, -0.5, 15., 17.5]));
     }
+
+    #[test]
+    fn norm_test() {
+        let s = Signal::from([-2., 3., 0.]);
+        assert_eq!(s.euclidean_norm(), 3.61);
+        assert_eq!(math::l_norm(&s.data, 0), 2.);
+    }
 }
