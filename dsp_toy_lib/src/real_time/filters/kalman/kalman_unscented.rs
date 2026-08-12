@@ -32,8 +32,12 @@ where
     pub process_noise_covariance : Option<SMatrixTimes<T, TimeStepType, STATE_DIM, STATE_DIM>>,
 
     /// aka Measurement Function
+    /// 
+    /// `Fn(SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, MEASURE_DIM, 1>`
     pub observation : FObservation,
     /// State transition function (Vector of size `STATE_DIM`, `TimeStepType`) -> Vector of size `STATE_DIM`
+    /// 
+    /// `FnMut(SMatrix<T, STATE_DIM, 1>, TimeStepType, Option<SMatrix<T, CONTROL_DIM, 1>>) -> SMatrix<T, STATE_DIM, 1>`
     pub state_transition : FStateTransition,
     /// Sigma Generator Function
     pub sigma_generator_function: FSigmaPointsFunction,
