@@ -1,6 +1,6 @@
 // Expose math functions to C ABI. Complex values are represented as split real and imaginary `f64` arrays.
 
-use std::slice;
+use std::{mem::MaybeUninit, slice};
 
 use nalgebra::{Complex, ComplexField};
 
@@ -23,14 +23,14 @@ pub extern "C" fn convolve_real(a : *mut f64, a_len : usize, b : *const f64, b_l
             Some(len) => len,
             None => return false,
         };
-        let a_input = slice::from_raw_parts(a, a_len);
-        let a_out = slice::from_raw_parts_mut(a, out_len);
-        let a_comp : Vec<Complex<f64>> = a_input.iter().map(|x| Complex::<f64>::from(*x)).collect();
+        let a_comp : Vec<Complex<f64>> = slice::from_raw_parts(a, a_len).iter().map(|x| Complex::<f64>::from(*x)).collect();
         let b_comp : Vec<Complex<f64>> = slice::from_raw_parts(b, b_len).iter().map(|x| Complex::<f64>::from(*x)).collect();
+
+        let a_out = slice::from_raw_parts_mut(a.cast::<MaybeUninit<f64>>(), out_len);
 
         let convolved = math::convolve(&a_comp, &b_comp);
         for (i, val) in convolved.iter().map(|x| x.real()).enumerate() {
-            a_out[i] = val;
+            a_out[i] = MaybeUninit::<f64>::new(val);
         }
 
         return true;
@@ -42,8 +42,10 @@ pub extern "C" fn convolve_real(a : *mut f64, a_len : usize, b : *const f64, b_l
 /// `a_real` and `a_imag` must point to at least `a_len + b_len - 1` writable elements.
 /// 
 /// If `false` is returned, one of the provided pointers was null or one of the lengths was zero.
+/// 
+/// Important: `a_real` and `a_imag` must not overlap.
 #[unsafe(no_mangle)]
-pub extern "C" fn convolve_complex(a_real : *mut f64, a_imag : *mut f64, a_len : usize, b_real : *const f64, b_imag : *mut f64, b_len : usize) -> bool {
+pub extern "C" fn convolve_complex(a_real : *mut f64, a_imag : *mut f64, a_len : usize, b_real : *const f64, b_imag : *const f64, b_len : usize) -> bool {
     if a_real.is_null() || a_imag.is_null() || b_real.is_null() || b_imag.is_null() || a_len == 0 || b_len == 0 {
         return false;
     }
@@ -52,27 +54,24 @@ pub extern "C" fn convolve_complex(a_real : *mut f64, a_imag : *mut f64, a_len :
             Some(len) => len,
             None => return false,
         };
-        let a_real_input = slice::from_raw_parts(a_real, a_len);
-        let a_imag_input = slice::from_raw_parts(a_imag, a_len);
-        let a_real_out = slice::from_raw_parts_mut(a_real, out_len);
-        let a_imag_out = slice::from_raw_parts_mut(a_imag, out_len);
-        let a_comp : Vec<Complex<f64>> = a_real_input
+        let a_comp : Vec<Complex<f64>> = slice::from_raw_parts(a_real, a_len)
             .iter()
-            .zip(a_imag_input.iter())
+            .zip(slice::from_raw_parts(a_imag, a_len).iter())
             .map(|(real, imag)| Complex::<f64>::new(*real, *imag))
             .collect();
-        let b_real_input = slice::from_raw_parts(b_real, b_len);
-        let b_imag_input = slice::from_raw_parts(b_imag, b_len);
-        let b_comp : Vec<Complex<f64>> = b_real_input
+        let b_comp : Vec<Complex<f64>> = slice::from_raw_parts(b_real, b_len)
             .iter()
-            .zip(b_imag_input.iter())
+            .zip(slice::from_raw_parts(b_imag, b_len).iter())
             .map(|(real, imag)| Complex::<f64>::new(*real, *imag))
             .collect();
 
+        let a_real_out = slice::from_raw_parts_mut(a_real.cast::<MaybeUninit<f64>>(), out_len);
+        let a_imag_out = slice::from_raw_parts_mut(a_imag.cast::<MaybeUninit<f64>>(), out_len);
+
         let convolved = math::convolve(&a_comp, &b_comp);
         for (i, (real, imag)) in convolved.iter().map(|x| (x.real(), x.imaginary())).enumerate() {
-            a_real_out[i] = real;
-            a_imag_out[i] = imag;
+            a_real_out[i] = MaybeUninit::<f64>::new(real);
+            a_imag_out[i] = MaybeUninit::<f64>::new(imag);
         }
 
         return true;
