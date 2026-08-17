@@ -3,7 +3,7 @@ mod tests {
     use std::ops::Mul;
     use nalgebra::{ComplexField};
 
-    use dsp_toy_lib::{math, signal::signal::Signal, utility::{equality_accuracy}};
+    use dsp_toy_lib::{math, signal::signal::Signal, utility::{equality_accuracy, round_to_place}};
 
 
     #[test]
@@ -227,8 +227,10 @@ mod tests {
 
     #[test]
     fn norm_test() {
+        assert_eq!(equality_accuracy(), 2);        
+
         let s = Signal::from([-2., 3., 0.]);
-        assert_eq!(s.euclidean_norm(), 3.61);
+        assert_eq!(round_to_place(s.euclidean_norm(), 2), 3.61);
         assert_eq!(math::l_norm(&s.data, 0), 2.);
     }
 }
