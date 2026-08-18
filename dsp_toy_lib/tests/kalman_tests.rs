@@ -7,7 +7,7 @@ mod kalman_tests {
     use rand_chacha::ChaCha8Rng;
     use rand_distr::StandardNormal;
 
-    use dsp_toy_lib::{math::normalize_angle, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex, kalman_unscented::FilterKalmanUnscented, sigma_points_functions::julier::Julier}, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
+    use dsp_toy_lib::{math::normalize_angle, real_time::{filters::kalman::{kalman_input::KalmanInput, kalman_linear::FilterKalmanLinear, kalman_linear_complex::FilterKalmanLinearComplex, kalman_unscented::FilterKalmanUnscented, sigma_points_functions::julier::Julier}, real_time_signal_processer::{RealTimeSignalProcessor, RealTimeSignalProcessorUnreliable}}, utility::{SMatrixTimes, equality_accuracy, round_to_place}};
 
     #[test]
     /// Values for this example were taken from https://kalmanfilter.net/kalman1d_pn.html#:~:text=EXAMPLE%206%20%E2%80%93%20ESTIMATING%20THE%20TEMPERATURE%20OF%20THE%20LIQUID%20IN%20A%20TANK
@@ -31,7 +31,7 @@ mod kalman_tests {
             control_vector: None,
             process_noise_covariance: None,
             delta_time: None
-        });
+        }).unwrap();
 
         let mut final_val = -1.;
 
@@ -44,7 +44,7 @@ mod kalman_tests {
                 process_noise_covariance: None,
                 delta_time: None
             };
-            let tmp = filter.process_sample(&inp);
+            let tmp = filter.process_sample(&inp).unwrap();
             if i == 9 {
                 final_val = tmp[0];
             }
@@ -228,7 +228,7 @@ mod kalman_tests {
 
         let mut final_estimate = SMatrix::<f64, STATE_DIM, 1>::zeros();
         for (i, input) in inputs.iter().enumerate() {
-            let tmp: SMatrix<f64, STATE_DIM, 1> = filter.process_sample(input);
+            let tmp: SMatrix<f64, STATE_DIM, 1> = filter.process_sample(input).unwrap();
             if i == inputs.len() - 1 {
                 final_estimate = tmp.clone();
             }

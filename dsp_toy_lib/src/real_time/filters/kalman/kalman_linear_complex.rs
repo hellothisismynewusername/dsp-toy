@@ -31,29 +31,33 @@ where
     T: ComplexField + Copy + Clone + From<TimeStepType>,
     TimeStepType: RealField + Copy + Clone
 {
-    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
-    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
-    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
+    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>), &'static str> {
         // handle needed changes regarding dynamically changing values in the matrices
         let state_transition = if let Some(delta_time) = input.delta_time {
-            self.state_transition.multiply_entries_complex(delta_time)
+            self.state_transition.multiply_entries_complex(delta_time)?
         } else {
             self.state_transition.matrix
         };
         let control_o = if self.control.is_some() {
             if let Some(delta_time) = input.delta_time {
-                Some(self.control.as_ref().unwrap().multiply_entries_complex(delta_time))
+                Some(self.control.as_ref().unwrap().multiply_entries_complex(delta_time)?)
             } else {
                 Some(self.control.as_ref().unwrap().matrix)
             }
@@ -65,7 +69,7 @@ where
                 Some(input_process_noise_covariance)
             } else {
                 if let Some(delta_time) = input.delta_time {
-                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_complex(delta_time))
+                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_complex(delta_time)?)
                 } else {
                     Some(self.process_noise_covariance.as_ref().unwrap().matrix)
                 }
@@ -91,7 +95,7 @@ where
             state_transition * self.estimate_covariance * state_transition.adjoint()
         };
 
-        (extrapolate_state, extrapolate_estimate_covariance)
+        Ok((extrapolate_state, extrapolate_estimate_covariance))
     }
 }
 
@@ -107,7 +111,7 @@ where
         
         // Prediction
 
-        let (extrapolate_state, extrapolate_estimate_covariance) = self.predict_internal(&input);
+        let (extrapolate_state, extrapolate_estimate_covariance) = self.predict_internal(&input).unwrap();
         self.state_vector = extrapolate_state;
         self.estimate_covariance = extrapolate_estimate_covariance;
         

@@ -2,7 +2,7 @@ use std::{usize};
 
 use nalgebra::{RealField, SMatrix};
 
-use crate::{real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::RealTimeSignalProcessor}, utility::{SMatrixTimes}};
+use crate::{real_time::{filters::kalman::kalman_input::KalmanInput, real_time_signal_processer::{RealTimeSignalProcessorUnreliable}}, utility::SMatrixTimes};
 
 pub struct FilterKalmanLinear<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize> {
     /// `STATE_DIM` x `1`
@@ -28,29 +28,33 @@ where
     TimeStepType: RealField + Copy + Clone,
     T: RealField + Copy + Clone + From<TimeStepType>
 {
-    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
-    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance) = self.predict_internal(input);
+    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
-    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>) {
+    fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>), &'static str> {
         // handle needed changes regarding dynamically changing values in the matrices
         let state_transition = if let Some(delta_time) = input.delta_time {
-            self.state_transition.multiply_entries_float(delta_time)
+            self.state_transition.multiply_entries_float(delta_time)?
         } else {
             self.state_transition.matrix
         };
         let control_o = if self.control.is_some() {
             if let Some(delta_time) = input.delta_time {
-                Some(self.control.as_ref().unwrap().multiply_entries_float(delta_time))
+                Some(self.control.as_ref().unwrap().multiply_entries_float(delta_time)?)
             } else {
                 Some(self.control.as_ref().unwrap().matrix)
             }
@@ -62,7 +66,7 @@ where
                 Some(input_process_noise_covariance)
             } else {
                 if let Some(delta_time) = input.delta_time {
-                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_float(delta_time))
+                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_float(delta_time)?)
                 } else {
                     Some(self.process_noise_covariance.as_ref().unwrap().matrix)
                 }
@@ -88,23 +92,23 @@ where
             state_transition * self.estimate_covariance * state_transition.transpose()
         };
 
-        (extrapolate_state, extrapolate_estimate_covariance)
+        Ok((extrapolate_state, extrapolate_estimate_covariance))
     }
 }
 
 impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
-    RealTimeSignalProcessor<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>>
+    RealTimeSignalProcessorUnreliable<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>, &'static str>
 for
     FilterKalmanLinear<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
     TimeStepType: RealField + Copy + Clone,
     T: RealField + Copy + Clone + From<TimeStepType>
 {
-    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> SMatrix<T, STATE_DIM, 1> {
+    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<SMatrix<T, STATE_DIM, 1>, &'static str> {
         
         // Prediction
 
-        let (extrapolate_state, extrapolate_estimate_covariance) = self.predict_internal(&input);
+        let (extrapolate_state, extrapolate_estimate_covariance) = self.predict_internal(&input)?;
         self.state_vector = extrapolate_state;
         self.estimate_covariance = extrapolate_estimate_covariance;
         
@@ -112,7 +116,7 @@ where
 
         let mut innovation_covariance = self.observation * self.estimate_covariance * self.observation.transpose() + self.measure_covariance;
         if !innovation_covariance.try_inverse_mut() {
-            panic!("Innovation covariance couldn't be inverted");
+            return Err("Innovation covariance couldn't be inverted");
         }
         let kalman_gain = self.estimate_covariance * self.observation.transpose() * innovation_covariance;
 
@@ -124,6 +128,6 @@ where
         updated_estimate_covariance.fill_lower_triangle_with_upper_triangle(); // force symmetrical, a tiny floating point mismatch could ruin everything.
         self.estimate_covariance = updated_estimate_covariance;
 
-        updated_state
+        Ok(updated_state)
     }
 }

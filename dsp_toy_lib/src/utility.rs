@@ -60,16 +60,19 @@ where
     i32: From<MultiplierType>
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_int(&self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
+    pub fn multiply_entries_int(&self, entry_multiplier_value : MultiplierType) -> Result<SMatrix<T, R, C>, &'static str> {
         if self.entry_multipliers_powers.is_none() {
-            return self.matrix;
+            return Ok(self.matrix);
         }
         let mut out = self.matrix.clone();
         for (pos, curr_power) in self.entry_multipliers_powers.as_ref().unwrap().iter() {
-            out[*pos] = self.matrix[*pos] * T::from(entry_multiplier_value.powi(i32::from(*curr_power)))
+            if pos.0 >= R || pos.1 >= C {
+                return Err("Error: position out of bounds");
+            }
+            out[*pos] = self.matrix[*pos] * T::from(entry_multiplier_value.powi(i32::from(*curr_power)));
         }
 
-        out
+        Ok(out)
     }
 }
 
@@ -80,16 +83,19 @@ where
     T: RealField + Copy + From<MultiplierType>
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_float(&self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
+    pub fn multiply_entries_float(&self, entry_multiplier_value : MultiplierType) -> Result<SMatrix<T, R, C>, &'static str> {
         if self.entry_multipliers_powers.is_none() {
-            return self.matrix;
+            return Ok(self.matrix);
         }
         let mut out = self.matrix.clone();
         for (pos, curr_power) in self.entry_multipliers_powers.as_ref().unwrap().iter() {
+            if pos.0 >= R || pos.1 >= C {
+                return Err("Error: position out of bounds");
+            }
             out[*pos] = self.matrix[*pos] * T::from(entry_multiplier_value.powf(*curr_power))
         }
 
-        out
+        Ok(out)
     }
 }
 
@@ -100,15 +106,18 @@ where
     T: ComplexField + Copy + From<MultiplierType>,
 {
     /// `entry_multiplier_value` is like plugging in the dt value.
-    pub fn multiply_entries_complex(&self, entry_multiplier_value : MultiplierType) -> SMatrix<T, R, C> {
+    pub fn multiply_entries_complex(&self, entry_multiplier_value : MultiplierType) -> Result<SMatrix<T, R, C>, &'static str> {
         if self.entry_multipliers_powers.is_none() {
-            return self.matrix;
+            return Ok(self.matrix);
         }
         let mut out = self.matrix.clone();
         for (pos, curr_power) in self.entry_multipliers_powers.as_ref().unwrap().iter() {
+            if pos.0 >= R || pos.1 >= C {
+                return Err("Error: position out of bounds");
+            }
             out[*pos] = self.matrix[*pos] * T::from(entry_multiplier_value.powc((*curr_power).into()))
         }
 
-        out
+        Ok(out)
     }
 }

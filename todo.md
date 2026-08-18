@@ -1,3 +1,4 @@
+- Update the other KF to be `RealTimeSignalProcessorUnreliable` (currently only `kalman_linear` is)
 - Refactor to remove as much implicit matrix copying as possible
 - Complex UKF?
 - More sigma functions

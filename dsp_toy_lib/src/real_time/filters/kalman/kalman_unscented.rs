@@ -74,21 +74,25 @@ where
     FResidualX: Fn(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, 1>) -> SMatrix<T, STATE_DIM, 1>,
     FAddX: Fn(SMatrix<T, STATE_DIM, 1>, MatrixView<'_, T, Const<STATE_DIM>, Const<1>, Const<1>, Const<STATE_DIM>>) -> SMatrix<T, STATE_DIM, 1> + Copy
 {
-    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance, _, _ , _) = self.predict_internal(input);
+    pub fn init(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance, _, _ , _) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
-    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) {
-        let (state, estimate_covariance, _, _, _) = self.predict_internal(input);
+    pub fn predict(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(), &'static str> {
+        let (state, estimate_covariance, _, _, _) = self.predict_internal(input)?;
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
+
+        Ok(())
     }
 
     /// Returns `(extrapolate_state, extrapolate_covariance)`.
     fn predict_internal(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>)
-    -> (SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>, [SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT], [T; N_OUT])
+    -> Result<(SMatrix<T, STATE_DIM, 1>, SMatrix<T, STATE_DIM, STATE_DIM>, [SMatrix<T, STATE_DIM, 1>; N_OUT], [T; N_OUT], [T; N_OUT]), &'static str>
     where 
         FSigmaPointsFunction: SigmaPointsFunction<T, STATE_DIM, N_OUT>
     {
@@ -98,7 +102,7 @@ where
                 Some(input_process_noise_covariance)
             } else {
                 if let Some(delta_time) = input.delta_time {
-                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_float(delta_time))
+                    Some(self.process_noise_covariance.as_ref().unwrap().multiply_entries_float(delta_time)?)
                 } else {
                     Some(self.process_noise_covariance.as_ref().unwrap().matrix)
                 }
@@ -136,7 +140,7 @@ where
             .fold(SMatrix::zeros(), |acc, val| acc + val)
         };
 
-        (new_state, new_estimate_covariance, new_sigmas, w_m, w_c)
+        Ok((new_state, new_estimate_covariance, new_sigmas, w_m, w_c))
     }
 }
 
@@ -160,7 +164,7 @@ where
         
         // Prediction
 
-        let (state, estimate_covariance, sigmas, w_m, w_c) = self.predict_internal(&inp);
+        let (state, estimate_covariance, sigmas, w_m, w_c) = self.predict_internal(&inp).unwrap();
         self.state_vector = state;
         self.estimate_covariance = estimate_covariance;
 
