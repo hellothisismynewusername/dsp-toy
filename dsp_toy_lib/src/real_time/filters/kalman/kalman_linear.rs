@@ -97,14 +97,15 @@ where
 }
 
 impl<T, TimeStepType, const STATE_DIM : usize, const MEASURE_DIM : usize, const CONTROL_DIM : usize>
-    RealTimeSignalProcessorUnreliable<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, SMatrix<T, STATE_DIM, 1>, &'static str>
+    RealTimeSignalProcessorUnreliable<&KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>, (SMatrix<T, STATE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>), &'static str>
 for
     FilterKalmanLinear<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>
 where 
     TimeStepType: RealField + Copy + Clone,
     T: RealField + Copy + Clone + From<TimeStepType>
 {
-    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<SMatrix<T, STATE_DIM, 1>, &'static str> {
+    /// Returns a `Result` of `(filtered value, innovation)`
+    fn process_sample(&mut self, input : &KalmanInput<T, TimeStepType, STATE_DIM, MEASURE_DIM, CONTROL_DIM>) -> Result<(SMatrix<T, STATE_DIM, 1>, SMatrix<T, MEASURE_DIM, 1>), &'static str> {
         
         // Prediction
 
@@ -120,7 +121,8 @@ where
         }
         let kalman_gain = self.estimate_covariance * self.observation.transpose() * innovation_covariance;
 
-        let updated_state = self.state_vector + kalman_gain * (input.measurement_vector - self.observation * self.state_vector);
+        let innovation = input.measurement_vector - self.observation * self.state_vector;
+        let updated_state = self.state_vector + kalman_gain * innovation;
         self.state_vector = updated_state;
         
         // Simplified Covariance Update Equation
@@ -128,6 +130,6 @@ where
         updated_estimate_covariance.fill_lower_triangle_with_upper_triangle(); // force symmetrical, a tiny floating point mismatch could ruin everything.
         self.estimate_covariance = updated_estimate_covariance;
 
-        Ok(updated_state)
+        Ok((updated_state, innovation))
     }
 }

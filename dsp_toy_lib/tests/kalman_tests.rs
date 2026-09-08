@@ -46,10 +46,10 @@ mod kalman_tests {
             };
             let tmp = filter.process_sample(&inp).unwrap();
             if i == 9 {
-                final_val = tmp[0];
+                final_val = tmp.0[0];
             }
             if print {
-                println!("true:\t{}\nmeas:\t{}\nkalm:\t{}", true_values[i], measurements[i], tmp[0]);
+                println!("true:\t{}\nmeas:\t{}\nkalm:\t{}", true_values[i], measurements[i], tmp.0[0]);
             }
         }
 
@@ -228,7 +228,7 @@ mod kalman_tests {
 
         let mut final_estimate = SMatrix::<f64, STATE_DIM, 1>::zeros();
         for (i, input) in inputs.iter().enumerate() {
-            let tmp: SMatrix<f64, STATE_DIM, 1> = filter.process_sample(input).unwrap();
+            let tmp: SMatrix<f64, STATE_DIM, 1> = filter.process_sample(input).unwrap().0;
             if i == inputs.len() - 1 {
                 final_estimate = tmp.clone();
             }

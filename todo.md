@@ -1,4 +1,5 @@
 - Update the other KF to be `RealTimeSignalProcessorUnreliable` (currently only `kalman_linear` is)
+- Update the other KF to return tuple with innovation (currently only `kalman_linear`)
 - Refactor to remove as much implicit matrix copying as possible
 - Complex UKF?
 - More sigma functions
